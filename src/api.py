@@ -97,8 +97,11 @@ class QueriesSaveRequest(BaseModel):
     queries: dict[str, str]
 
 class ClassifyConfirmRequest(BaseModel):
-    project_id: str = "default"
     decisions: list[dict] = []   # [{"filename": ..., "report_type": ...}]
+    # project_id is taken from the query string (consistent with /classify),
+    # NOT the body — the frontend sends it as ?project_id=... alongside the
+    # decisions payload. Declaring it here too would shadow/silently default
+    # it to "default" and break per-project sorting.
 
 class ClassifyProfileSaveRequest(BaseModel):
     profiles: dict[str, str]
@@ -366,18 +369,19 @@ async def classify_inbox(project_id: str = "default"):
 
 
 @app.post("/classify/confirm")
-async def confirm_classification(req: ClassifyConfirmRequest):
-    """Apply final type decisions, moving files into data/{type}/.
+async def confirm_classification(req: ClassifyConfirmRequest, project_id: str = "default"):
+    """Apply final type decisions, moving files into <project>/{type}/.
 
+    Query param:
+        project_id: str  (the project folder name)
     Body (JSON):
-        project_id: str
         decisions: [ {"filename": "...", "report_type": "CLINICAL"}, ... ]
 
     Already-correct files are skipped; low-confidence and corrected files
     are moved to their chosen folder.
     """
-    pipeline = _get_pipeline(req.project_id)
-    base_dir = project_data_dir(req.project_id)
+    pipeline = _get_pipeline(project_id)
+    base_dir = project_data_dir(project_id)
     classifier = Classifier(base_dir=base_dir)
     try:
         moved = classifier.apply_decisions(req.decisions)

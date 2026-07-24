@@ -345,64 +345,7 @@ body {
   background: var(--danger-100);
 }
 
-/* ===================== Upload zones (color-coded) ===================== */
-.upload-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.upload-zone {
-  --zc: var(--line-2);
-  --zt: transparent;
-  border: 2px dashed var(--zc);
-  border-radius: var(--r);
-  padding: 22px 14px;
-  text-align: center;
-  background: var(--surface);
-  transition: border-color var(--t-fast), background var(--t-fast),
-              box-shadow var(--t-fast);
-  cursor: pointer;
-}
-.upload-zone:hover {
-  border-color: var(--zc);
-  background: var(--zt);
-  box-shadow: var(--shadow-sm);
-}
-.upload-zone.dragover {
-  border-color: var(--zc);
-  background: var(--zt);
-  box-shadow: 0 0 0 3px var(--zt);
-}
-
-/* per-type color codes */
-.upload-zone[data-type="CLINICAL"] { --zc: var(--type-clinical); --zt: var(--type-clinical-100); }
-.upload-zone[data-type="FE"]       { --zc: var(--type-fe);       --zt: var(--type-fe-100); }
-.upload-zone[data-type="CE"]       { --zc: var(--type-ce);       --zt: var(--type-ce-100); }
-#smart-zone { --zc: var(--primary); --zt: var(--primary-100); }
-
-.upload-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 56px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  background: var(--zt);
-  color: var(--zc);
-  margin-bottom: 10px;
-}
-.upload-label {
-  font-size: 12px;
-  color: var(--ink-2);
-  margin-bottom: 12px;
-}
-.upload-input { display: none; }
-
+/* ===================== Dossier file list (scan result) ===================== */
 .file-list {
   margin-top: 8px;
   font-size: 12px;
@@ -761,7 +704,6 @@ body {
 /* ===================== Responsive ===================== */
 @media (max-width: 720px) {
   .app { padding: 28px 16px 48px; }
-  .upload-grid { grid-template-columns: 1fr; }
   .step-pill .lbl { display: none; }
   .step-pill:not(:last-child)::after { width: 24px; margin-left: 8px; }
   .header h1 { font-size: 26px; }

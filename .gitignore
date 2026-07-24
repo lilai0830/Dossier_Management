@@ -1,7 +1,7 @@
 # Dossier_Management
 # ============================================
 
-# Python
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -10,40 +10,47 @@ build/
 .venv/
 venv/
 
-# Auto-generated data (do not commit)
+# ---------- Auto-generated runtime data (do not commit) ----------
 chroma_projects/
 screenshots/
 output/
 logs/
 
-# Input PDFs (user data)
+# ---------- Per-project dossier folders (new model) ----------
+# Each user project lives at the repo root as PROJECT_ROOT/<project_name>/
+# and is auto-classified into <project_name>/{CLINICAL,FE,CE}/.
+# The classified report subfolders (and their PDFs/pptx/docx) are user
+# data and must NOT enter version control.
+**/CLINICAL/
+**/FE/
+**/CE/
+
+# ---------- Legacy data/ layout (kept for backward compatibility) ----------
+data/
 data/**/*.pdf
 
-# IDE
+# ---------- IDE ----------
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# ---------- OS ----------
 .DS_Store
 Thumbs.db
 
-# Env
+# ---------- Env ----------
 .env
 .env.local
 
-# Runtime index (auto-generated)
+# ---------- Runtime index (auto-generated) ----------
 index_projects/
 
-# Archive / trash
+# ---------- Archive / trash ----------
 _trash/
 
-# WorkBuddy local workspace memory (not for VCS)
+# ---------- WorkBuddy local workspace memory (not for VCS) ----------
 .workbuddy/
 
-# All user report inputs
-data/
-
-# Local reports / presentation materials
+# ---------- Local reports / presentation materials ----------
 汇报/

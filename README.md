@@ -38,7 +38,7 @@ Word installed.*
 ┌────────────────────────────────────────────────────────────┐
 │  1. Interface Layer                                          │
 │     static/ (HTML/CSS/JS)  +  src/api.py (FastAPI)          │
-│     Upload, classify, edit queries, run, download           │
+│     Configure project, classify, edit queries, run, download│
 ├────────────────────────────────────────────────────────────┤
 │  2. Orchestration Layer                                      │
 │     main.py (CLI)  +  src/pipeline.py (DossierPipeline)     │
@@ -69,18 +69,21 @@ Word installed.*
 
 ## User Journey — what they give, what they get
 
-1. **Drop files** — either into `data/CLINICAL` / `data/FE` / `data/CE` (manual),
-   or all at once into `data/inbox` (smart batch).
-2. **Auto-classify** (inbox only) — each doc's first page is scored (keyword
-   match) against `classify/*.txt` anchors. High-confidence → auto-filed;
-   low-confidence → flagged in the UI for a one-click manual decision.
+1. **Configure project** — enter a **project name**. The app looks for a folder
+   with that name under the project root (`PROJECT_ROOT/<project_name>/`) and
+   scans the dossier files (pdf/pptx/docx) inside it. (No manual upload — the
+   source folder *is* the input.)
+2. **Auto-classify** — each doc's first page is scored (keyword match) against
+   `classify/*.txt` anchors. High-confidence docs are auto-filed into
+   `<project_name>/CLINICAL` / `FE` / `CE`; low-confidence docs stay in the
+   project folder, flagged in the UI for review.
 3. **(Optional) Tune the analysis frame** — edit the per-type queries in the
    UI (persisted to `queries/*.txt`). This defines *what a "summary page" looks like*.
 4. **Press Run** — the pipeline ingests, indexes, lexically discovers the summary
    pages per report type, screenshots them, and merges everything into one PDF.
 5. **Download** — grab `output/synthesis_input_{project_id}.pdf` and feed it to L'OréalGPT.
 
-**They give:** raw report PDFs (+ optional query tuning).
+**They give:** a project folder of raw report PDFs (+ optional query tuning).
 **They get:** one clean, ordered PDF of the summary pages, ready for the LLM.
 
 ---
@@ -103,12 +106,13 @@ pip install -r requirements.txt
 # Web UI (recommended)
 python main.py serve --port 8000        # then open http://localhost:8000
 
-# CLI
-python main.py classify                 # propose types for data/inbox
-python main.py ingest  --project-id PROJ-001
-python main.py package PROJ-001
-python main.py run     --project-id PROJ-001   # ingest + package in one shot
-python main.py reset   --project-id PROJ-001   # clear index + screenshots
+# CLI — <project_id> names a folder under the project root that holds the
+# raw dossiers; classified files are written to <project_id>/{CLINICAL,FE,CE}/.
+python main.py classify --project-id PROJ-001   # propose + file types for PROJ-001/
+python main.py ingest   --project-id PROJ-001
+python main.py package  PROJ-001
+python main.py run      --project-id PROJ-001   # ingest + package in one shot
+python main.py reset    --project-id PROJ-001   # clear index + screenshots
 ```
 
 ---
@@ -116,11 +120,14 @@ python main.py reset   --project-id PROJ-001   # clear index + screenshots
 ## Directory Layout
 
 ```
-data/CLINICAL, data/FE, data/CE   PDF inputs (report_type inferred from folder)
-data/inbox                  staging for smart batch upload
+<project_name>/              a project folder under the project root; holds the
+                            raw dossiers to classify (the input — no upload)
+<project_name>/CLINICAL,
+<project_name>/FE,
+<project_name>/CE           classified outputs (report_type inferred from folder)
 queries/{CLINICAL,FE,CE}.txt      per-type query term lists (editable)
 classify/{CLINICAL,FE,CE}.txt     per-type classification anchors (editable)
-index_projects/             lightweight page-text index (JSON, no vectors)
+index_projects/             lightweight page-text index (JSON, keyed by project, no vectors)
 screenshots/                300 DPI page screenshots (auto-generated)
 output/                     final synthesis PDF
 logs/                       runtime logs
