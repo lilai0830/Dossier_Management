@@ -1,0 +1,49 @@
+# Dossier_Management
+# ============================================
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Auto-generated data (do not commit)
+chroma_projects/
+screenshots/
+output/
+logs/
+
+# Input PDFs (user data)
+data/**/*.pdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# Runtime index (auto-generated)
+index_projects/
+
+# Archive / trash
+_trash/
+
+# WorkBuddy local workspace memory (not for VCS)
+.workbuddy/
+
+# All user report inputs
+data/
+
+# Local reports / presentation materials
+汇报/
