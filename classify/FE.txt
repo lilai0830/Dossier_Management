@@ -1,0 +1,5 @@
+Sensory report. First page identifies sensory evaluation, sensory analysis,
+sensory panel, or sensory assessment. Contains terms: sensory, panel,
+texture, fragrance, odor, appearance, feel, sensory attributes,
+descriptive analysis, hedonic, liking, touch, color. Product assessed
+through human sensory perception.

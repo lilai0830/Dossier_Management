@@ -1,0 +1,137 @@
+# Dossier Management — Document Retrieval & Packaging Pipeline
+
+A **local, offline, human-in-the-loop** pipeline that extracts the summary pages
+(high-resolution screenshot + structured annotation) from project reports
+(CLINICAL / FE / CE), and merges them into a single PDF for a downstream
+multimodal LLM (L'OréalGPT) to synthesize.
+
+> The pipeline **prepares evidence**; it does **not** draw the final conclusions.
+> Output = `output/synthesis_input_{project_id}.pdf` for the LLM to consume.
+
+---
+
+## Report Types
+
+| Type         | Meaning             | First-page signal used for auto-classification |
+| ------------ | ------------------- | ---------------------------------------------- |
+| `CLINICAL` | Clinical            | clinical study / dermatological signals        |
+| `FE`       | Sensory             | sensory evaluation signals                     |
+| `CE`       | Consumer Evaluation | consumer test / panel signals                  |
+
+---
+
+## Source Formats
+
+The pipeline ingests **PDF, PPTX, and DOCX**. Non-PDF files are auto-converted
+to a sibling PDF (via locally-installed **Microsoft Office COM automation**, reusing
+the Office license you already own — no external commercial license needed)
+**before** classification / indexing / screenshotting. The converted PDF
+lands next to the source in the same folder, so every downstream step stays
+PDF-only. *Requires Windows + an interactive desktop session with PowerPoint &
+Word installed.*
+
+---
+
+## Architecture — 5 Layers
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  1. Interface Layer                                          │
+│     static/ (HTML/CSS/JS)  +  src/api.py (FastAPI)          │
+│     Upload, classify, edit queries, run, download           │
+├────────────────────────────────────────────────────────────┤
+│  2. Orchestration Layer                                      │
+│     main.py (CLI)  +  src/pipeline.py (DossierPipeline)     │
+│     ingest → package → run → reset ; classify                │
+├────────────────────────────────────────────────────────────┤
+│  3. Processing Layer                                         │
+│     pdf_parser (PyMuPDF)  ·  retriever (lexical)            │
+│     classifier (lexical)  ·  pdf_generator (reportlab)      │
+├────────────────────────────────────────────────────────────┤
+│  4. Storage Layer                                           │
+│     index_projects/ (page-text JSON)  ·  screenshots/       │
+│     ·  output/                                               │
+├────────────────────────────────────────────────────────────┤
+│  5. Config Layer                                           │
+│     src/config.py  ·  queries/*.txt  ·  classify/*.txt      │
+└────────────────────────────────────────────────────────────┘
+```
+
+| Layer                   | Responsibility                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Interface**     | What the user touches — web UI + REST API.                                                          |
+| **Orchestration** | Sequences the steps of the pipeline; single source of truth for the workflow.                        |
+| **Processing**    | Stateless workers: parse PDF, retrieve summary pages by keyword scoring, classify, build output PDF. |
+| **Storage**       | Lightweight page-text index (JSON), 300 DPI page screenshots, final merged PDF.                      |
+| **Config**        | Paths, thresholds, and the user-editable query & classification term lists.                          |
+
+---
+
+## User Journey — what they give, what they get
+
+1. **Drop files** — either into `data/CLINICAL` / `data/FE` / `data/CE` (manual),
+   or all at once into `data/inbox` (smart batch).
+2. **Auto-classify** (inbox only) — each doc's first page is scored (keyword
+   match) against `classify/*.txt` anchors. High-confidence → auto-filed;
+   low-confidence → flagged in the UI for a one-click manual decision.
+3. **(Optional) Tune the analysis frame** — edit the per-type queries in the
+   UI (persisted to `queries/*.txt`). This defines *what a "summary page" looks like*.
+4. **Press Run** — the pipeline ingests, indexes, lexically discovers the summary
+   pages per report type, screenshots them, and merges everything into one PDF.
+5. **Download** — grab `output/synthesis_input_{project_id}.pdf` and feed it to L'OréalGPT.
+
+**They give:** raw report PDFs (+ optional query tuning).
+**They get:** one clean, ordered PDF of the summary pages, ready for the LLM.
+
+---
+
+## How summary pages are found (the core idea)
+
+No static `is_summary` tag. **Every page is ingested equally**, then at package time
+the pipeline scores each page against the per-type query in `queries/{type}.txt`
+(keyword / term-list matching — no embedding model, no vector database). Pages above
+a score threshold are kept, then capped per type so the output PDF stays focused.
+This keeps summary discovery flexible, fully user-configurable, and explainable.
+
+---
+
+## Quick Start
+
+```bash
+pip install -r requirements.txt
+
+# Web UI (recommended)
+python main.py serve --port 8000        # then open http://localhost:8000
+
+# CLI
+python main.py classify                 # propose types for data/inbox
+python main.py ingest  --project-id PROJ-001
+python main.py package PROJ-001
+python main.py run     --project-id PROJ-001   # ingest + package in one shot
+python main.py reset   --project-id PROJ-001   # clear index + screenshots
+```
+
+---
+
+## Directory Layout
+
+```
+data/CLINICAL, data/FE, data/CE   PDF inputs (report_type inferred from folder)
+data/inbox                  staging for smart batch upload
+queries/{CLINICAL,FE,CE}.txt      per-type query term lists (editable)
+classify/{CLINICAL,FE,CE}.txt     per-type classification anchors (editable)
+index_projects/             lightweight page-text index (JSON, no vectors)
+screenshots/                300 DPI page screenshots (auto-generated)
+output/                     final synthesis PDF
+logs/                       runtime logs
+src/                        core modules
+static/                     frontend (index.html, style.css, app.js)
+```
+
+## Tech Stack
+
+PyMuPDF · reportlab · Pillow · FastAPI · uvicorn · comtypes (Office COM)
+
+> No vector database and no embedding model are used. Retrieval is pure
+> keyword / term-list scoring, which is sufficient for the small, structured
+> corpus this pipeline handles and keeps the setup dependency-light.

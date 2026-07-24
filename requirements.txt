@@ -1,0 +1,32 @@
+# ============================================================
+# Dossier_Management - Document Pipeline Dependencies
+# Install: pip install -r requirements.txt
+# ============================================================
+
+# --- PDF parsing (text extraction + page screenshots) ---
+PyMuPDF>=1.24.0
+
+# --- PDF generation (merged output) ---
+reportlab>=4.2.0
+
+# --- Image processing (screenshot handling) ---
+Pillow>=10.4.0
+
+# --- Web API (HTTP interface) ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# --- Data processing & utilities ---
+numpy>=1.26.0
+python-multipart>=0.0.9
+
+# --- Document-format conversion (pptx/docx -> PDF via MS Office COM) ---
+# Drives the locally-installed Microsoft Office (PowerPoint / Word) through
+# COM automation. No external commercial license needed — reuses the
+# Office license already owned. Requires Windows + interactive desktop session.
+comtypes>=1.1.0
+
+# --- OCR enhancement (optional: on-image text extraction) ---
+# Uncomment the following lines if OCR is needed:
+# paddleocr>=2.8.0
+# paddlepaddle>=3.0.0

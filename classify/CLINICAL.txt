@@ -1,0 +1,5 @@
+Clinical report. First page identifies a clinical study, clinical trial,
+clinical evaluation, or clinical investigation. Contains terms: clinical,
+investigator, dermatological, efficacy, tolerance, safety, before/after,
+grader assessment, instrumental clinical measurement, endpoints,
+adverse event. Measured clinical outcomes under controlled conditions.
