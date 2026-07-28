@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance Dossier Management — Document Pipeline</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/static/style.css?v=11">
+<link rel="stylesheet" href="/static/style.css?v=13">
 </head>
 <body>
 
@@ -44,7 +44,18 @@
             title="Safe reset: clear this project's index, screenshots and generated PDF only. Your dossier files in the project folder are never deleted.">Reset</button>
         </div>
       </div>
-      <p class="hint">Enter the project name. The app looks for a folder with that name under the app root and scans the dossiers inside it. Classified files are written into <strong>&lt;project&gt;/CLINICAL</strong>, <strong>FE</strong>, <strong>CE</strong>.</p>
+      <p class="hint">Set the <strong>Listen Folder</strong> (base directory where your projects live), then enter the project name. The app looks for a folder with that name under the Listen Folder and scans the dossiers inside it. Classified files are written into <strong>&lt;project&gt;/CLINICAL</strong>, <strong>FE</strong>, <strong>CE</strong>. The Listen Folder path is saved locally and reused next time.</p>
+
+      <div class="form-row">
+        <label for="listen-folder">Listen Folder Path</label>
+        <div class="folder-input-group">
+          <input type="text" id="listen-folder" placeholder="e.g. D:\Projects\Dossiers" autocomplete="off">
+          <button class="btn btn-sm btn-outline" id="btn-browse-folder" type="button"
+            title="Open a folder picker to choose the base watch folder">Browse</button>
+          <button class="btn btn-sm btn-outline" id="btn-save-folder" type="button"
+            title="Save this folder path to disk (persisted across restarts)">Save Path</button>
+        </div>
+      </div>
 
       <div class="form-row">
         <label for="project-name">Project Name</label>
@@ -215,7 +226,29 @@
 
 </div>
 
-<script src="/static/app.js?v=17"></script>
+<!-- ============ Folder picker modal ============ -->
+<div id="folder-modal" class="modal hidden">
+  <div class="modal-backdrop" id="folder-modal-backdrop"></div>
+  <div class="modal-dialog">
+    <div class="modal-head">
+      <h3>Select a folder</h3>
+      <button class="modal-close" id="folder-modal-close" type="button" title="Close">&times;</button>
+    </div>
+    <div class="saved-paths-block">
+      <div class="saved-paths-head">Saved Paths <span class="muted">— click to open, &nbsp;🗑️ to remove</span></div>
+      <div id="saved-paths-list" class="saved-paths-list"></div>
+    </div>
+    <div id="folder-current" class="folder-current"></div>
+    <div id="folder-list" class="folder-list"></div>
+    <div class="modal-foot">
+      <button class="btn btn-sm btn-outline" id="folder-up" type="button" title="Go up one level">Up</button>
+      <button class="btn btn-sm btn-primary" id="folder-select" type="button"
+        title="Use the current folder as the Listen Folder">Select this folder</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js?v=19"></script>
 
 </body>
 </html>

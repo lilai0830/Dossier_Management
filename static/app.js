@@ -56,6 +56,226 @@ function showProjectPath(path, name) {
 }
 
 // =================================================================
+// Listen-folder config (persisted to listen_folder.txt, NOT logged)
+// =================================================================
+
+function getListenFolder() {
+  return ($("#listen-folder") ? $("#listen-folder").value : "").trim();
+}
+
+async function loadListenFolder() {
+  try {
+    const res = await fetch("/config/listen-folder");
+    const data = await res.json();
+    if (data.ok && data.path) {
+      $("#listen-folder").value = data.path;
+      // Intentionally no path text in the log.
+    }
+  } catch (err) {
+    // config is optional — ignore network errors silently
+  }
+}
+
+async function saveListenFolder(path) {
+  if (!path) return;
+  try {
+    const res = await fetch("/config/listen-folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      log("Failed to save listen folder: " + (data.detail || ""), "error");
+    }
+  } catch (err) {
+    log("Save listen folder error: " + err.message, "error");
+  }
+}
+
+// --- Folder browser (directory picker backed by /browse-folders) ---
+let currentBrowsePath = "";
+let currentBrowseParent = null;
+
+async function openFolderBrowser() {
+  const start = getListenFolder();
+  currentBrowsePath = start;
+  await folderBrowseNavigate(start);
+  await renderSavedPaths();
+  $("#folder-modal").classList.remove("hidden");
+}
+
+// --- Saved listen-folder history (rendered inside the folder picker) ---
+async function renderSavedPaths() {
+  const list = $("#saved-paths-list");
+  if (!list) return;
+  list.innerHTML = "";
+  let active = "";
+  try {
+    const res = await fetch("/config/listen-folders");
+    const data = await res.json();
+    active = data.active || "";
+    const paths = data.paths || [];
+    if (!paths.length) {
+      const empty = document.createElement("div");
+      empty.className = "saved-path-empty muted";
+      empty.textContent = "No saved paths yet.";
+      list.appendChild(empty);
+      return;
+    }
+    paths.forEach((p) => {
+      const row = document.createElement("div");
+      row.className = "saved-path-item" + (p === active ? " active" : "");
+      const label = document.createElement("span");
+      label.className = "saved-path-text";
+      label.textContent = p;
+      label.title = "Click to browse this folder";
+      label.addEventListener("click", () => folderBrowseNavigate(p));
+      const del = document.createElement("button");
+      del.className = "saved-path-del";
+      del.type = "button";
+      del.title = "Delete this saved path";
+      del.textContent = "🗑️";
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteSavedPath(p);
+      });
+      row.appendChild(label);
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+  } catch (err) {
+    // history is optional — ignore network errors silently
+  }
+}
+
+async function deleteSavedPath(path) {
+  if (!confirm("Delete this saved path?\n" + path)) return;
+  try {
+    const res = await fetch(
+      "/config/listen-folder?path=" + encodeURIComponent(path),
+      { method: "DELETE" }
+    );
+    const data = await res.json();
+    if (data.ok) {
+      // If the deleted path was the active one, fall the input back to the
+      // new active folder (or blank if the list is now empty).
+      const input = $("#listen-folder");
+      if (input && input.value.trim() === path) {
+        input.value = data.active || "";
+      }
+      renderSavedPaths();
+    } else {
+      log("Failed to delete path: " + (data.detail || ""), "error");
+    }
+  } catch (err) {
+    log("Delete path error: " + err.message, "error");
+  }
+}
+
+async function folderBrowseNavigate(path) {
+  currentBrowsePath = path || "";
+  try {
+    const url =
+      "/browse-folders" +
+      (currentBrowsePath ? "?path=" + encodeURIComponent(currentBrowsePath) : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.ok) {
+      log("Folder browse failed.", "error");
+      return;
+    }
+    renderFolderList(data);
+  } catch (err) {
+    log("Folder browse error.", "error");
+  }
+}
+
+function renderFolderList(data) {
+  currentBrowseParent = data.parent || null;
+  const cur = $("#folder-current");
+  cur.textContent = data.path
+    ? data.path
+    : data.drives && data.drives.length
+    ? "Select a drive"
+    : "/";
+  const list = $("#folder-list");
+  list.innerHTML = "";
+
+  if (data.parent) {
+    const up = document.createElement("div");
+    up.className = "folder-item folder-up";
+    up.textContent = "..";
+    up.addEventListener("click", () => folderBrowseNavigate(data.parent));
+    list.appendChild(up);
+  }
+  (data.drives || []).forEach((d) => {
+    const item = document.createElement("div");
+    item.className = "folder-item";
+    item.textContent = d;
+    item.addEventListener("click", () => folderBrowseNavigate(d));
+    list.appendChild(item);
+  });
+  (data.dirs || []).forEach((d) => {
+    const item = document.createElement("div");
+    item.className = "folder-item";
+    item.textContent = d;
+    item.addEventListener("click", () => folderBrowseNavigate(d));
+    list.appendChild(item);
+  });
+}
+
+if (document.getElementById("btn-browse-folder")) {
+  document
+    .getElementById("btn-browse-folder")
+    .addEventListener("click", openFolderBrowser);
+}
+
+if (document.getElementById("btn-save-folder")) {
+  document.getElementById("btn-save-folder").addEventListener("click", async () => {
+    const p = getListenFolder();
+    if (!p) {
+      log("Enter or choose a folder path first.", "warn");
+      return;
+    }
+    await saveListenFolder(p);
+  });
+}
+
+if (document.getElementById("folder-select")) {
+  document.getElementById("folder-select").addEventListener("click", async () => {
+    if (!currentBrowsePath) {
+      log("Navigate into a folder first, then select it.", "warn");
+      return;
+    }
+    $("#listen-folder").value = currentBrowsePath;
+    $("#folder-modal").classList.add("hidden");
+    await saveListenFolder(currentBrowsePath);
+  });
+}
+
+if (document.getElementById("folder-up")) {
+  document.getElementById("folder-up").addEventListener("click", () => {
+    if (currentBrowseParent) folderBrowseNavigate(currentBrowseParent);
+  });
+}
+
+if (document.getElementById("folder-modal-close")) {
+  document
+    .getElementById("folder-modal-close")
+    .addEventListener("click", () =>
+      $("#folder-modal").classList.add("hidden")
+    );
+}
+if (document.getElementById("folder-modal-backdrop")) {
+  document
+    .getElementById("folder-modal-backdrop")
+    .addEventListener("click", () =>
+      $("#folder-modal").classList.add("hidden")
+    );
+}
+
+// =================================================================
 // Query management
 // =================================================================
 
@@ -223,6 +443,12 @@ if (document.getElementById("btn-scan")) {
     }
     setButtonLoading(btn, true);
     try {
+      // Persist the Listen Folder (if set) so the scan resolves the right
+      // base directory — the path itself is never written to the log.
+      const lf = getListenFolder();
+      if (lf) {
+        await saveListenFolder(lf);
+      }
       log(`Scanning project folder for "${name}"...`);
       const res = await fetch("/project/scan", {
         method: "POST",
@@ -565,6 +791,7 @@ if (document.getElementById("btn-save-profiles")) {
 // Load queries + profiles from backend on startup
 loadQueries();
 loadProfiles();
+loadListenFolder();
 
 log("Dossier_Management ready.", "info");
 log("Wizard: 3 steps — Configure (project name + scan) → Classify → Run.");

@@ -2,7 +2,10 @@
 FastAPI server — Dossier_Management Document Pipeline
 
 Endpoints:
-  POST /project/scan     — Scan PROJECT_ROOT/<name>/ for dossier files
+  GET  /config/listen-folder  — Read the user-configured watch folder
+  POST /config/listen-folder  — Save the user-configured watch folder
+  GET  /browse-folders        — Directory picker backend (returns subfolders)
+  POST /project/scan     — Scan <listen>/<name>/ (or PROJECT_ROOT/<name>/) for dossiers
   POST /classify         — Auto-classify dossiers in the project folder
   POST /classify/confirm — Apply final type decisions (move files)
   GET  /classify/profiles     — Read type profiles from classify/*.txt
@@ -19,6 +22,7 @@ Endpoints:
   GET  /                — Serves the frontend UI
 """
 
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -34,7 +38,11 @@ from .config import (
     PROJECT_ROOT,
     REPORT_TYPES,
     SCREENSHOTS_DIR,
+    delete_listen_folder,
+    get_listen_folders,
+    get_listen_folder,
     project_data_dir,
+    set_listen_folder,
 )
 # NOTE: DATA_DIR (the legacy global data/ folder) is intentionally no longer
 # imported here — the pipeline now reads/writes per-project folders
@@ -90,7 +98,11 @@ class RunRequest(BaseModel):
 
 
 class ScanRequest(BaseModel):
-    project_name: str  # folder name under PROJECT_ROOT to scan for dossiers
+    project_name: str  # folder name under the listen folder (or PROJECT_ROOT) to scan for dossiers
+
+
+class ListenFolderRequest(BaseModel):
+    path: str  # absolute path of the user-configured watch folder
 
 
 class QueriesSaveRequest(BaseModel):
@@ -132,6 +144,107 @@ async def index():
     if index_path.exists():
         return HTMLResponse(index_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h2>Frontend not found. Place index.html in static/</h2>")
+
+
+# ---------------------------------------------------------------------------
+# Listen-folder config + folder browser (persisted to listen_folder.txt)
+# NOTE: the path value is intentionally NEVER written to logs.
+# ---------------------------------------------------------------------------
+
+@app.get("/config/listen-folder")
+async def get_listen_folder_config():
+    """Return the user-configured watch folder (base path for projects)."""
+    return {"ok": True, "path": get_listen_folder() or ""}
+
+
+@app.post("/config/listen-folder")
+async def set_listen_folder_config(req: ListenFolderRequest):
+    """Persist the user-configured watch folder to listen_folder.txt."""
+    if not req.path or not req.path.strip():
+        raise HTTPException(400, "path is required")
+    set_listen_folder(req.path.strip())
+    return {"ok": True, "path": get_listen_folder() or ""}
+
+
+@app.get("/config/listen-folders")
+async def get_listen_folders_config():
+    """Return the full ordered history of saved listen folders.
+
+    `active` is the first entry (used as the base dir for projects). The
+    frontend folder picker renders `paths` as a re-selectable history list
+    with per-row delete controls.
+    """
+    folders = get_listen_folders()
+    return {
+        "ok": True,
+        "paths": folders,
+        "active": folders[0] if folders else "",
+    }
+
+
+@app.delete("/config/listen-folder")
+async def delete_listen_folder_config(path: str = ""):
+    """Delete a single saved listen folder from the history list.
+
+    Query param `path` is the absolute folder to remove. The path value is
+    intentionally never written to logs.
+    """
+    if not path or not path.strip():
+        raise HTTPException(400, "path is required")
+    removed = delete_listen_folder(path.strip())
+    if not removed:
+        raise HTTPException(404, "path not found in saved list")
+    folders = get_listen_folders()
+    return {
+        "ok": True,
+        "removed": path.strip(),
+        "paths": folders,
+        "active": folders[0] if folders else "",
+    }
+
+
+@app.get("/browse-folders")
+async def browse_folders(path: str = ""):
+    """Directory-picker backend: list subfolders under `path`.
+
+    With no `path`, returns available drives (Windows) or the root (posix).
+    The frontend renders this as a navigable tree and returns the chosen
+    absolute path. The path value is never logged.
+    """
+    if not path:
+        if os.name == "nt":
+            drives = [
+                f"{chr(d)}:\\"
+                for d in range(ord("A"), ord("Z") + 1)
+                if os.path.exists(f"{chr(d)}:\\")
+            ]
+            return {"ok": True, "path": None, "parent": None, "drives": drives, "dirs": []}
+        root = Path("/")
+        dirs = sorted(
+            str(c) for c in root.iterdir()
+            if c.is_dir() and not c.is_symlink()
+        )
+        return {"ok": True, "path": "/", "parent": None, "drives": [], "dirs": dirs}
+
+    current = Path(path)
+    if not current.exists() or not current.is_dir():
+        raise HTTPException(404, f"Folder not found: {path}")
+
+    parent = str(current.parent) if current.parent != current else None
+    dirs = []
+    try:
+        for child in sorted(current.iterdir()):
+            if child.is_dir() and not child.is_symlink():
+                dirs.append(str(child))
+    except OSError:
+        pass
+    return {
+        "ok": True,
+        "path": str(current),
+        "parent": parent,
+        "drives": [],
+        "dirs": dirs,
+    }
 
 
 @app.post("/project/scan")

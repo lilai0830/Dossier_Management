@@ -8,6 +8,14 @@ from pathlib import Path
 # --- Project root ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# --- User-configured watch folder (base dir for projects) ---------------
+# Persisted to listen_folder.txt at the project root. When set, per-project
+# folders are resolved as <listen_folder>/<project_name>/ instead of
+# PROJECT_ROOT/<project_name>/. Lets the user point the app at any folder
+# (e.g. an OneDrive-synced dossier library) without moving files. The path
+# is intentionally NOT written to logs.
+LISTEN_FOLDER_FILE = PROJECT_ROOT / "listen_folder.txt"
+
 # --- Data & output directories ---
 DATA_DIR = PROJECT_ROOT / "data"
 INDEX_DIR = PROJECT_ROOT / "index_projects"   # lightweight page-text index (no vectors)
@@ -22,15 +30,85 @@ CLASSIFY_PROFILE_DIR = PROJECT_ROOT / "classify"
 REPORT_TYPES = ["CLINICAL", "FE", "CE"]
 
 
-def project_data_dir(project_name: str) -> Path:
-    """Per-project dossier working folder: PROJECT_ROOT / <project_name>/.
+def _read_listen_folders() -> list[str]:
+    """Read all saved listen folders as an ordered, de-duplicated list.
 
-    This is the folder the app scans for a project's raw dossiers (the user
-    keeps their source files here, typically inside an OneDrive-synced tree).
-    Classified files are written into <project_name>/{CLINICAL,FE,CE}/ beneath
-    it. The project name doubles as the pipeline ``project_id`` (index key +
-    output PDF name), so this single mapping drives the whole per-project flow.
+    Stored one absolute path per line in listen_folder.txt. The first entry
+    is the *active* folder (used as the base dir for projects). The full
+    ordered list is the user-visible history shown in the folder picker so
+    the user can re-pick or delete past choices.
     """
+    if not LISTEN_FOLDER_FILE.exists():
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in LISTEN_FOLDER_FILE.read_text(encoding="utf-8").splitlines():
+        p = line.strip()
+        if not p:
+            continue
+        p = str(Path(p).expanduser())
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+def get_listen_folders() -> list[str]:
+    """Return the full ordered list of saved listen folders (history)."""
+    return _read_listen_folders()
+
+
+def get_listen_folder() -> str | None:
+    """Return the active (first) saved listen folder, or None if unset.
+
+    The active folder is the base directory under which per-project folders
+    (<project_name>/) live.
+    """
+    folders = _read_listen_folders()
+    return folders[0] if folders else None
+
+
+def set_listen_folder(path: str) -> None:
+    """Add / activate a listen folder in the history list.
+
+    De-duplicates and moves the path to the front of the list, then persists.
+    The front entry becomes the active folder used for project resolution.
+    Re-saving the same path only re-orders it — it never creates a duplicate.
+    """
+    p = str(Path(path).expanduser()).strip()
+    if not p:
+        return
+    folders = [f for f in _read_listen_folders() if f != p]
+    folders.insert(0, p)
+    LISTEN_FOLDER_FILE.write_text("\n".join(folders) + "\n", encoding="utf-8")
+
+
+def delete_listen_folder(path: str) -> bool:
+    """Remove one saved folder from the history list. Returns True if removed."""
+    p = str(Path(path).expanduser()).strip()
+    folders = _read_listen_folders()
+    if p not in folders:
+        return False
+    folders = [f for f in folders if f != p]
+    LISTEN_FOLDER_FILE.write_text(
+        ("\n".join(folders) + "\n") if folders else "", encoding="utf-8"
+    )
+    return True
+
+
+def project_data_dir(project_name: str) -> Path:
+    """Per-project dossier working folder.
+
+    The base is the user-configured listen folder (listen_folder.txt) when
+    set, otherwise the app root (PROJECT_ROOT). The project folder is
+    <base>/<project_name>/, and classified files go into
+    <project_name>/{CLINICAL,FE,CE}/ beneath it. The project name doubles as
+    the pipeline ``project_id`` (index key + output PDF name), so this single
+    mapping drives the whole per-project flow.
+    """
+    base = get_listen_folder()
+    if base:
+        return Path(base) / project_name
     return PROJECT_ROOT / project_name
 
 # Friendly labels for the synthesis PDF annotation block (user-defined mapping:

@@ -96,39 +96,32 @@ def cmd_serve(args):
     import uvicorn
 
     # --- WatchFiles scope ------------------------------------------------
-    # OneDrive real-time sync touches thousands of files under venv/ (and
-    # data/ output/ while the pipeline runs). If WatchFiles watches the whole
-    # tree (the `reload=True` default), every sync event reloads the server
-    # in an endless loop and the source never settles.
+    # OneDrive real-time sync touches thousands of files under venv/. If
+    # WatchFiles watches the whole tree (the `reload=True` default), every
+    # sync event reloads the server in an endless loop and the source never
+    # settles. Fix: restrict the watcher to SOURCE-CODE ONLY via
+    # `reload_dirs` -- uvicorn only watches these directories, so venv/ (and
+    # every other dir) is never observed. `reload_excludes` adds
+    # belt-and-braces ignores for compiled artifacts inside those dirs.
     #
-    # Restrict the watcher to SOURCE-CODE only. `reload_dirs` makes uvicorn
-    # watch just these dirs/files; `reload_excludes` is a belt-and-braces
-    # ignore for anything we never want to trigger a reload.
+    # NOTE on format (from uvicorn source): `reload_dirs` must list
+    # DIRECTORIES (files are filtered out by is_dir() and ignored).
+    # `reload_excludes` is matched with pathlib.Path.match() -- filename
+    # only, no cross-directory `**` -- so use bare directory names
+    # ("__pycache__"), NOT globs like "venv/**" (those match nothing).
     ROOT = Path(__file__).resolve().parent
     reload_dirs = [
         str(ROOT / "src"),
         str(ROOT / "static"),
-        str(ROOT / "main.py"),
     ]
     reload_excludes = [
-        "venv/**",
-        "__pycache__/**",
+        "__pycache__",
         "*.pyc",
-        "data/**",
-        "output/**",
-        "logs/**",
-        "screenshots/**",
-        "_trash/**",
-        "index_projects/**",
-        "_dump_docx.py",
-        "_diag/**",
-        "_gen/**",
-        ".workbuddy/**",
     ]
 
     print(f"Starting server at http://localhost:{args.port}")
     print(f"API docs: http://localhost:{args.port}/docs")
-    print("Hot-reload watching source only (venv/ excluded).")
+    print("Hot-reload watching source only (src/, static/); venv/ excluded.")
     uvicorn.run(
         "src.api:app",
         host="0.0.0.0",

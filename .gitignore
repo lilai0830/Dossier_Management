@@ -52,5 +52,8 @@ _trash/
 # ---------- WorkBuddy local workspace memory (not for VCS) ----------
 .workbuddy/
 
+# ---------- User-configured watch folder (machine-specific path) ----------
+listen_folder.txt
+
 # ---------- Local reports / presentation materials ----------
 汇报/
