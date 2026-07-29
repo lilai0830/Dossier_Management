@@ -1,7 +1,7 @@
 """
 Core pipeline — ingest & package orchestration.
 
-Ingest:   parse all PDFs in /data/{CLINICAL,FE,CE}/ -> build a lightweight page-text
+Ingest:   parse all PDFs in /data/{CLINS,FE,CE}/ -> build a lightweight page-text
           index (no embeddings, no vector store).
 Package:  discover relevant pages via the lexical retriever
           -> screenshot -> merge PDF.
@@ -37,7 +37,7 @@ logger = get_logger("pipeline")
 # ---------------------------------------------------------------------------
 
 def load_queries_from_files() -> dict[str, str]:
-    """Read per-type queries from queries/{CLINICAL,FE,CE}.txt.
+    """Read per-type queries from queries/{CLINS,FE,CE}.txt.
 
     Falls back to DEFAULT_QUERIES for any missing file.
     """
@@ -53,7 +53,7 @@ def load_queries_from_files() -> dict[str, str]:
 
 
 def save_queries_to_files(queries: dict[str, str]) -> None:
-    """Write per-type queries back to queries/{CLINICAL,FE,CE}.txt."""
+    """Write per-type queries back to queries/{CLINS,FE,CE}.txt."""
     QUERIES_DIR.mkdir(parents=True, exist_ok=True)
     for rt in REPORT_TYPES:
         text = queries.get(rt, DEFAULT_QUERIES.get(rt, ""))
@@ -93,7 +93,7 @@ class DossierPipeline:
         """Parse all PDFs and build the page-text index.
 
         Reads classified PDFs from the per-project folder
-        PROJECT_ROOT/<project_id>/{CLINICAL,FE,CE}/.
+        PROJECT_ROOT/<project_id>/{CLINS,FE,CE}/.
 
         Returns:
             Total number of pages indexed.
@@ -104,7 +104,7 @@ class DossierPipeline:
 
         if total_pages == 0:
             logger.warning(
-                f"No PDF files found in {base_dir}/{{CLINICAL,FE,CE}}/."
+                f"No PDF files found in {base_dir}/{{CLINS,FE,CE}}/."
             )
         return total_pages
 

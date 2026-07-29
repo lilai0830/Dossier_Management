@@ -135,7 +135,7 @@ class PDFGenerator:
                     "text": str,
                     "screenshot": Path | str,
                     "filename": str,
-                    "report_type": str ("CLINICAL" / "FE" / "CE"),
+                    "report_type": str ("CLINS" / "FE" / "CE"),
                     "page_label": int,
                     "source_path": str,
                 }
@@ -279,7 +279,7 @@ class PDFGenerator:
 
         Two-column layout keeps the TOC on the cover even for large dossiers.
         Columns per side: #N (per-type index, matching the page footer),
-        Source File (no extension), Type (CLINICAL/FE/CE), Source Page.
+        Source File (no extension), Type (CLINS/FE/CE), Source Page.
         """
         groups = self._group_and_sort(summary_pages)
         rows = []
@@ -469,7 +469,7 @@ class PDFGenerator:
         return text + "..."
 
     def _relative_source(self, source: str) -> str:
-        """Return a clean project-relative path (e.g. data/CLINICAL/xxx.pdf).
+        """Return a clean project-relative path (e.g. data/CLINS/xxx.pdf).
 
         Avoids leaking the absolute local filesystem path into the output.
         """

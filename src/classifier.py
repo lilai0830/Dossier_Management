@@ -2,7 +2,7 @@
 Document-type classification — lexical (keyword) scoring against editable
 text profiles. Fully offline, no embedding model.
 
-Each report type (CLINICAL/FE/CE) has a profile text in classify/{TYPE}.txt
+Each report type (CLINS/FE/CE) has a profile text in classify/{TYPE}.txt
 describing what its first page looks like. A document's first-page text is
 scored (term-list match) against the three profiles. The highest score wins.
 
@@ -39,11 +39,11 @@ UNKNOWN = "UNKNOWN"
 
 
 # ---------------------------------------------------------------------------
-# Profile file helpers (read / write classify/{CLINICAL,FE,CE}.txt)
+# Profile file helpers (read / write classify/{CLINS,FE,CE}.txt)
 # ---------------------------------------------------------------------------
 
 def load_profiles_from_files() -> dict[str, str]:
-    """Read per-type classification profiles from classify/{CLINICAL,FE,CE}.txt.
+    """Read per-type classification profiles from classify/{CLINS,FE,CE}.txt.
 
     Falls back to DEFAULT_CLASSIFY_PROFILES for any missing file and writes
     the default back so the user can edit it.
@@ -62,7 +62,7 @@ def load_profiles_from_files() -> dict[str, str]:
 
 
 def save_profiles_to_files(profiles: dict[str, str]) -> None:
-    """Write per-type profiles back to classify/{CLINICAL,FE,CE}.txt."""
+    """Write per-type profiles back to classify/{CLINS,FE,CE}.txt."""
     CLASSIFY_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     for rt in REPORT_TYPES:
         text = profiles.get(rt, DEFAULT_CLASSIFY_PROFILES.get(rt, ""))
@@ -80,7 +80,7 @@ class Classifier:
 
     ``base_dir`` is the per-project dossier folder (PROJECT_ROOT / project_name).
     The inbox = ``base_dir`` (top-level dossiers); classified files are moved
-    into ``base_dir/{CLINICAL,FE,CE}/``. Falls back to the global DATA_DIR when
+    into ``base_dir/{CLINS,FE,CE}/``. Falls back to the global DATA_DIR when
     ``base_dir`` is not supplied.
     """
 
@@ -97,7 +97,7 @@ class Classifier:
 
         Returns:
             {
-                "report_type": "CLINICAL" | "FE" | "CE" | "UNKNOWN",
+                "report_type": "CLINS" | "FE" | "CE" | "UNKNOWN",
                 "confidence": float,           # top-1 lexical score
                 "scores": {type: score, ...},  # all three scores
                 "low_confidence": bool,        # needs manual review

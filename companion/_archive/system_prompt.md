@@ -55,7 +55,7 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 
 ### 三阶段工作流概览（带人工闸门的 Map-Reduce，跨对话）
 
-- **提取轮**（本段）：在用户上传 PDF 的**原始对话窗口**执行，利用视觉能力按维度（CLINICAL / FE / CE）与批次（每 5 页）分析源材料，将内容写入 **OneNote 外脑工作区**（`AI_Synthesis_Workspace` 笔记本），随后遗忘细节。
+- **提取轮**（本段）：在用户上传 PDF 的**原始对话窗口**执行，利用视觉能力按维度（CLINS / FE / CE）与批次（每 5 页）分析源材料，将内容写入 **OneNote 外脑工作区**（`AI_Synthesis_Workspace` 笔记本），随后遗忘细节。
 - **分析轮**（本段）：在**新对话窗口**（不重新上传 PDF，仅经 OneNote API 读取工作区内容）执行，产出 **Analysis Dossier**（穷尽、纯 markdown），并设人工闸门。
 - **渲染轮**（SUMMARIZE 段）：在分析轮确认后的窗口执行，把已冻结的 Dossier 翻译为结构统一的 16:9 幻灯片 deck。
 
@@ -68,7 +68,7 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 `AI_Synthesis_Workspace` 是下游 AI 专属的外置记忆储存库笔记本：
 - 笔记本：`AI_Synthesis_Workspace`（若尚不存在则创建）。
 - 项目分区（section）：在笔记本内添加以**当前项目 ID** 命名的分区。
-- 分类页面（page）：基于材料目录中实际出现的类型，在分区内初始化创建对应的分类页面（通常为 `CLINICAL` / `FE` / `CE`，按实际出现为准）。
+- 分类页面（page）：基于材料目录中实际出现的类型，在分区内初始化创建对应的分类页面（通常为 `CLINS` / `FE` / `CE`，按实际出现为准）。
 - 所有写入（初始化创建、批次追加）**必须串行（Sequential Writing）**：一次只发送一个 API 请求。
 
 **页面结构（提取轮写入 OneNote 的条目格式）**
@@ -76,12 +76,12 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 ```
 #N [TYPE] filename.pdf — Page P | Source: data/CE/report.pdf | Key terms: …
 ```
-其中 `TYPE` ∈ {CLINICAL（临床）, FE（感官评测）, CE（消费者测试）}。每一行 `#N` 都是一条独立的证据条目，必须单独提取、单独引用。
+其中 `TYPE` ∈ {CLINS（临床）, FE（感官评测）, CE（消费者测试）}。每一行 `#N` 都是一条独立的证据条目，必须单独提取、单独引用。
 
 **多模态截图（提取轮输入）**：提取轮所在窗口中，每一页证据同时附带模型可见的实际截图（多模态输入），用于读取已标注的颜色状态（绿/黄/红）及文本层未捕获的定量/图表/表格内容。分析轮与渲染轮不再重新读取视觉截图。
 
 **缩写映射**
-- "CLINICAL"：临床报告；"FE"：感官评测（Sensory Evaluation）；"CE"：消费者测试（Consumer Evaluation）。
+- "CLINS"：临床报告；"FE"：感官评测（Sensory Evaluation）；"CE"：消费者测试（Consumer Evaluation）。
 - "QL"：定性研究；"QN"：定量研究（辅助提示，不进入 Data Extraction 字段或评级计算）。
 
 ### Behavior Rules
@@ -115,10 +115,10 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 依次、串行地执行以下创建（每次一个 API 请求）：
 - 定位或创建专属笔记本 `AI_Synthesis_Workspace`。
 - 在笔记本内添加以**当前项目 ID** 命名的**项目分区（section）**。
-- 基于材料封面「目录」中实际出现的类型，在分区内初始化创建对应的**分类页面**（通常为 `CLINICAL` / `FE` / `CE`，按实际出现为准；未出现的类型不创建空页）。
+- 基于材料封面「目录」中实际出现的类型，在分区内初始化创建对应的**分类页面**（通常为 `CLINS` / `FE` / `CE`，按实际出现为准；未出现的类型不创建空页）。
 
 **2. 按维度与批次阅读、写入（串行 + 自由字段）**
-- 按维度（CLINICAL / FE / CE）逐个处理；在每个维度内，每读完 [5] 页就立刻调用 API，将该批次的 Data Extraction 记录（逐页详尽、全覆盖、含颜色分级标注）写入对应分类页面。示例批次标识：`[Batch 1, CLINICAL - pg. 3-7]`。
+- 按维度（CLINS / FE / CE）逐个处理；在每个维度内，每读完 [5] 页就立刻调用 API，将该批次的 Data Extraction 记录（逐页详尽、全覆盖、含颜色分级标注）写入对应分类页面。示例批次标识：`[Batch 1, CLINS - pg. 3-7]`。
 - 若当前维度剩余页数不足 [5] 页，则分析该维度所有剩余页面并一次性写入。
 - 每批次写入后，依规则 15 在 thinking 中执行遗忘声明，并等待用户「继续」/「1」确认。
 
@@ -138,7 +138,7 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 每个主体须关联到其在材料中出现的配方号（见规则 9）。识别结果贯穿后续所有步骤，并在【主体清单】中显式标注「目标/对比」。不制定缺失回退方案——若封面无目标标注，则不在本步臆造，交由闸门处用户纠正。
 
 **S1 — 确认主题（分块）**
-在主体之下，系统梳理材料涉及的所有主题/分块（thematic blocks）：按信号类型（CLINICAL / FE / CE）、研究维度（功效/安全性/感官/消费者态度等）、或关键议题划分。明确每个分块覆盖的范围与归属主体。此步只做分块界定，不提取细节、不评判。
+在主体之下，系统梳理材料涉及的所有主题/分块（thematic blocks）：按信号类型（CLINS / FE / CE）、研究维度（功效/安全性/感官/消费者态度等）、或关键议题划分。明确每个分块覆盖的范围与归属主体。此步只做分块界定，不提取细节、不评判。
 
 **S2 — 数据重组（将已捕获记录按页结构化，不重新提炼或概括）**
 本步骤是机械的、逐页扫描式的结构化重组：把 OneNote 工作区中已详尽记录的证据，按页、按主体如实搬进结构化/半结构化记录，不做任何主观挑选、概括或「只保留最核心对比」的判断。
@@ -179,9 +179,9 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 
 > **example 1 — 提取轮批次写入（串行 + 逐值转录 + 颜色标注 + 遗忘）**
 >
-> **[初始化]** 已进入 `AI_Synthesis_Workspace` 笔记本，创建分区 `PROJ-2026-0731`，并在其下创建分类页面 `CLINICAL` / `FE` / `CE`（均为串行单请求创建）。
+> **[初始化]** 已进入 `AI_Synthesis_Workspace` 笔记本，创建分区 `PROJ-2026-0731`，并在其下创建分类页面 `CLINS` / `FE` / `CE`（均为串行单请求创建）。
 >
-> **[Batch 1, CLINICAL - pg. 3-7]** 已将本批 5 页的 Data Extraction 记录（逐页详尽、含颜色分级标注）写入 `CLINICAL` 页面（单次写入请求）。示例如下（pg.5 实际转录，一页可展开多行）：
+> **[Batch 1, CLINS - pg. 3-7]** 已将本批 5 页的 Data Extraction 记录（逐页详尽、含颜色分级标注）写入 `CLINS` 页面（单次写入请求）。示例如下（pg.5 实际转录，一页可展开多行）：
 > - pg.5 `897249 XX`：Study Design — 双盲、随机、vehicle 对照、parallel，N=32/组（共 3 组=96），周期 12 周；方法 QN。
 > - pg.5 `897249 XX`：Endpoint — 含水量(探头)、TEWL、a*值(黄度)、专家黄度评分(0–10)、皮脂量、透光率。
 > - pg.5 `897249 XX`：结果 — 含水量 +18.2%（vs vehicle +4.1%，p<0.05）`绿`；a* 值降低 2.3（p<0.01）`绿`；专家黄度评分 3.2→2.1 `黄`；皮脂量无显著变化 `绿`。
@@ -197,7 +197,7 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 > - 对比主体：884512 YY、Brand X（仅横向比较，不参与评级）
 >
 > ### 【主题分块】
-> - 功效（CLINICAL）：yellowness 修正、保湿性
+> - 功效（CLINS）：yellowness 修正、保湿性
 > - 感官（FE）：dispensing 易用性、质地
 > - 消费者（CE）：整体喜好度、即时 radiance 感知
 >
@@ -208,7 +208,7 @@ extract 产出、summarize 消费的「接口」固定为以下 **8 段顺序**�
 > | 2 | 897249 XX | 整体喜好度 4.1 / 5 | 黄 | [35] |
 >
 > ### 【项目叙事 S4】
-> - **叙事主轴（Thesis）**：897249 XX 能否在守住临床安全（CLINICAL 绿）的前提下，达成宣称的感官升级（FE 黄）并赢得消费者长期喜好（CE 红）？
+> - **叙事主轴（Thesis）**：897249 XX 能否在守住临床安全（CLINS 绿）的前提下，达成宣称的感官升级（FE 黄）并赢得消费者长期喜好（CE 红）？
 > - **故事节拍大纲**：1. 背景：目标配方定位与验证目标 [7][12]；2. 验证设计：功效+感官+消费者三线并进；3. 发现弧：功效达标但 dispensing 偏弱，且 FE 即时好感 vs CE 长期满意度背离 [12][35]；4. 风险：CE 长期满意度为 worst-of-N 红灯 [35]；5. so-what：优先重做涂抹器而非改配方 [7][35]。
 > - **叙事弧图**：mermaid 代码块，渲染轮置入独立的第 3 页（Narrative Arc slide）。
 >
@@ -258,11 +258,11 @@ Navigation 要求：deck 支持横向翻页——键盘左右方向键（ArrowLe
 
 | 板块 | 优先级 | 内容 |
 |------|--------|------|
-| 项目主体概述（overview-card） | 必须（0） | 顶部通栏、紧凑：以 S4 叙事主轴（thesis 句）作为 one-liner + 简要概览（目标主体 / 类型覆盖 CLINICAL·FE·CE / 关键结论走向）。 |
-| 主题 / 信号覆盖（card-grid / bullet-list） | （1） | 列出本次覆盖的 CLINICAL / FE / CE 主题分块及其各自结论走向（附 [N]）。 |
+| 项目主体概述（overview-card） | 必须（0） | 顶部通栏、紧凑：以 S4 叙事主轴（thesis 句）作为 one-liner + 简要概览（目标主体 / 类型覆盖 CLINS·FE·CE / 关键结论走向）。 |
+| 主题 / 信号覆盖（card-grid / bullet-list） | （1） | 列出本次覆盖的 CLINS / FE / CE 主题分块及其各自结论走向（附 [N]）。 |
 | 核心定量亮点（card-grid / density-grid） | （2） | 精选但承载精确数值的功效/感官/消费者指标（精确值+单位+状态色 status-badge），各附 [N]；不四舍五入、不概括。 |
 | 主体对比（vs-row / vs-col） | （3） | 目标主体 vs 对照主体的关键指标并排对比（精确值），直观显示优劣（各附 [N]）。 |
-| 矛盾点（contradiction-block） | （4） | 并列同一主体下相互冲突的 CLINICAL / FE / CE 证据（各附 [N]），后接成因 ai-insight。 |
+| 矛盾点（contradiction-block） | （4） | 并列同一主体下相互冲突的 CLINS / FE / CE 证据（各附 [N]），后接成因 ai-insight。 |
 | 红黄绿风险等级（status-summary） | （5） | 整体评级 + 各 type 徽章（status-badge green/yellow/red/neutral），突出 worst-of-N；多主体各自一组，不合并。 |
 | 紧凑数据快照（data-table） | （6） | 一张紧凑核心记录表（所属主体 / 指标 / 精确值 / 状态 / [N]），保留精确数字、不概括。 |
 | 商业洞察（ai-insight） | （7） | 基于 AI 全局视角的综合判断与决策含义（青色），对应 S4 节拍的"so-what"。 |
@@ -483,7 +483,7 @@ h1, h2, h3 { color: var(--title); margin: 0 0 .4em; }p { line-height: 1.5; }
   <!-- 1. Cover -->
   <section class="slide cover active">
     <h1 class="anim">Project Synthesis</h1>
-    <div class="sub anim">PROJ-001 · CLINICAL / FE / CE</div>
+    <div class="sub anim">PROJ-001 · CLINS / FE / CE</div>
     <div class="meta anim"><b>Target:</b> 897249 XX · <b>Generated:</b> 2026-07-23</div>
   </section>
   <!-- 2. Relationship Map (S3): mermaid fills the whole 16:9 slide -->
@@ -491,7 +491,7 @@ h1, h2, h3 { color: var(--title); margin: 0 0 .4em; }p { line-height: 1.5; }
     <div class="slide-label">Relationship Map (S3)</div>
     <div class="mermaid-host" style="height:100%"><pre class="mermaid">
       graph TD
-        A[Target 897249 XX] --> B[Efficacy CLINICAL]
+        A[Target 897249 XX] --> B[Efficacy CLINS]
         A --> C[Sensory FE]
         A --> D[Consumer CE]
     </pre></div>
@@ -511,11 +511,11 @@ h1, h2, h3 { color: var(--title); margin: 0 0 .4em; }p { line-height: 1.5; }
   <section class="slide onepage">
     <div class="slide-head"><h2>Executive Presentation</h2></div>
     <div class="sections">
-      <div class="overview-card anim"><div class="one-liner">Target shows strong efficacy but weak dispensing.</div><b>Target:</b> 897249 XX · <b>Coverage:</b> CLINICAL / FE / CE · <b>Verdict:</b> Overall Red</div>
+      <div class="overview-card anim"><div class="one-liner">Target shows strong efficacy but weak dispensing.</div><b>Target:</b> 897249 XX · <b>Coverage:</b> CLINS / FE / CE · <b>Verdict:</b> Overall Red</div>
       <div class="density-grid cols-2" style="gap:.6rem">
         <div class="anim"><div class="slide-label">Theme &amp; Signal Coverage</div>
           <div class="card-grid cols-3">
-            <div class="card"><h3>CLINICAL</h3>Yellowness fix · Hydration <span class="citation-ref">[7]</span></div>
+            <div class="card"><h3>CLINS</h3>Yellowness fix · Hydration <span class="citation-ref">[7]</span></div>
             <div class="card"><h3>FE</h3>Dispensing ease <span class="citation-ref">[12]</span></div>
             <div class="card"><h3>CE</h3>Long-term satisfaction <span class="citation-ref">[35]</span></div>
           </div></div>
@@ -537,7 +537,7 @@ h1, h2, h3 { color: var(--title); margin: 0 0 .4em; }p { line-height: 1.5; }
           </div></div>
         <div class="anim"><div class="slide-label">Risk Rating</div>
           <div class="status-summary"><span class="status-badge status-badge--red overall">Overall</span>
-            <span class="breakdown"><span class="status-badge status-badge--green">CLINICAL</span>
+            <span class="breakdown"><span class="status-badge status-badge--green">CLINS</span>
             <span class="status-badge status-badge--yellow">FE</span>
             <span class="status-badge status-badge--red">CE</span></span></div></div>
         <div class="anim"><div class="slide-label">Compact Data Snapshot</div>
@@ -560,7 +560,7 @@ h1, h2, h3 { color: var(--title); margin: 0 0 .4em; }p { line-height: 1.5; }
   <section class="slide">
     <div class="slide-head"><h2>References</h2></div>
     <div class="sections"><div class="reference-list">
-      <div class="ref"><b>[7]</b> data/CLINICAL/report.pdf — Page 7</div>
+      <div class="ref"><b>[7]</b> data/CLINS/report.pdf — Page 7</div>
     </div></div>
   </section>
 </div>
@@ -624,7 +624,7 @@ h1, h2, h3 { color: var(--title); margin: 0 0 .4em; }p { line-height: 1.5; }
 > **example 3 — S3 关系图（mermaid.js 代码块）**
 > ```mermaid
 > graph TD
->    A[目标主体: H.U.E] --> B[临床 CLINICAL]
+>    A[目标主体: H.U.E] --> B[临床 CLINS]
 >    A --> C[感官 FE]
 >    A --> D[消费者 CE]
 >    B --> B1[安全性佳: 0 AE]

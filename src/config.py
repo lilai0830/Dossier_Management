@@ -27,7 +27,7 @@ CLASSIFY_DIR = DATA_DIR / "inbox"
 CLASSIFY_PROFILE_DIR = PROJECT_ROOT / "classify"
 
 # --- Report type subdirectories ---
-REPORT_TYPES = ["CLINICAL", "FE", "CE"]
+REPORT_TYPES = ["CLINS", "FE", "CE"]
 
 
 def _read_listen_folders() -> list[str]:
@@ -102,7 +102,7 @@ def project_data_dir(project_name: str) -> Path:
     The base is the user-configured listen folder (listen_folder.txt) when
     set, otherwise the app root (PROJECT_ROOT). The project folder is
     <base>/<project_name>/, and classified files go into
-    <project_name>/{CLINICAL,FE,CE}/ beneath it. The project name doubles as
+    <project_name>/{CLINS,FE,CE}/ beneath it. The project name doubles as
     the pipeline ``project_id`` (index key + output PDF name), so this single
     mapping drives the whole per-project flow.
     """
@@ -112,9 +112,9 @@ def project_data_dir(project_name: str) -> Path:
     return PROJECT_ROOT / project_name
 
 # Friendly labels for the synthesis PDF annotation block (user-defined mapping:
-# CLINICAL = clinical signal, FE = sensory signal, CE = consumer evaluation signal).
+# CLINS = clinical signal, FE = sensory signal, CE = consumer evaluation signal).
 REPORT_TYPE_LABELS = {
-    "CLINICAL": "Clinical",
+    "CLINS": "Clinical",
     "FE": "Sensory",
     "CE": "Consumer Evaluation",
 }
@@ -140,7 +140,7 @@ LEXICAL_TOP_N_PER_TYPE = TOP_N_PER_TYPE
 
 # --- Default per-type queries (fallback if queries/*.txt missing) ---
 DEFAULT_QUERIES: dict[str, str] = {
-    "CLINICAL": (
+    "CLINS": (
         "clinical study trial investigation efficacy safety dermatological "
         "tolerance adverse event endpoint instrumental measurement before after "
         "grader assessment clinical outcome claim substantiation"
@@ -165,7 +165,7 @@ CLASSIFY_MIN_SCORE = 1          # min lexical score for a type to be a candidate
 CLASSIFY_CONFIDENCE_MARGIN = 1  # top1 - top2 gap below this => low confidence
 
 DEFAULT_CLASSIFY_PROFILES: dict[str, str] = {
-    "CLINICAL": (
+    "CLINS": (
         "Clinical report. First page identifies a clinical study, clinical trial, "
         "clinical evaluation, or clinical investigation. Contains terms: clinical, "
         "investigator, dermatological, efficacy, tolerance, safety, before/after, "

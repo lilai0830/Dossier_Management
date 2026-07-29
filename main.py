@@ -28,14 +28,14 @@ def cmd_ingest(args):
     pipeline.init()
     n = pipeline.ingest()
     if n == 0:
-        print("No PDF files found. Place files in data/CLINICAL/, data/FE/, data/CE/")
+        print("No PDF files found. Place files in data/CLINS/, data/FE/, data/CE/")
         sys.exit(1)
     print(f"\nIngest complete: {n} pages indexed.")
     print(f"Pages indexed: {pipeline.total_pages}")
 
 
 def cmd_classify(args):
-    """Auto-classify PDFs in data/inbox/ into CLINICAL/FE/CE subfolders."""
+    """Auto-classify PDFs in data/inbox/ into CLINS/FE/CE subfolders."""
     classifier = Classifier()
     out = classifier.classify_inbox()
     results = out["results"]
@@ -55,7 +55,7 @@ def cmd_classify(args):
             f"{r['confidence']:<8} {status}"
         )
     print(
-        "\nHigh-confidence files were auto-moved into data/CLINICAL|FE|CE/."
+        "\nHigh-confidence files were auto-moved into data/CLINS|FE|CE/."
     )
     print(
         "Low-confidence / UNKNOWN files remain in data/inbox/ for manual review."
@@ -151,7 +151,7 @@ Examples:
     # classify
     p_classify = sub.add_parser(
         "classify",
-        help="Auto-sort inbox PDFs into data/CLINICAL|FE|CE by first-page text",
+        help="Auto-sort inbox PDFs into data/CLINS|FE|CE by first-page text",
     )
     p_classify.add_argument("--project-id", default="default")
     p_classify.set_defaults(func=cmd_classify)
@@ -168,7 +168,7 @@ Examples:
         "--top-n",
         type=int,
         default=None,
-        help="Max pages kept PER report type (CLINICAL/FE/CE). "
+        help="Max pages kept PER report type (CLINS/FE/CE). "
              "Default 12 if omitted. Use -1 for no cap (All).",
     )
     p_pkg.add_argument(
@@ -185,7 +185,7 @@ Examples:
         "--top-n",
         type=int,
         default=None,
-        help="Max pages kept PER report type (CLINICAL/FE/CE). "
+        help="Max pages kept PER report type (CLINS/FE/CE). "
              "Default 12 if omitted. Use -1 for no cap (All).",
     )
     p_run.add_argument(

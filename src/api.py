@@ -10,7 +10,7 @@ Endpoints:
   POST /classify/confirm — Apply final type decisions (move files)
   GET  /classify/profiles     — Read type profiles from classify/*.txt
   POST /classify/profiles/save — Save type profiles to classify/*.txt
-  POST /ingest           — Trigger ingest (reads <project>/{CLINICAL,FE,CE}/)
+  POST /ingest           — Trigger ingest (reads <project>/{CLINS,FE,CE}/)
   POST /package          — Trigger package → generate synthesis PDF
   POST /run              — One-click: ingest + package
   GET  /status           — Index stats
@@ -19,6 +19,12 @@ Endpoints:
   POST /queries/save     — Save per-type query texts to queries/*.txt
   POST /reset            — Reset project (index + screenshots only)
   POST /clear-reset      — Safe reset: index + screenshots + output PDF only
+  POST /run-all          — One-click: full chain for ALL project folders,
+                           export PDFs to <listen>/Dossier_condensed/
+  GET  /run-all/status   — Progress of the one-click run (stage tracker)
+  GET  /activity         — Incremental activity feed for the frontend log
+  GET  /watch            — Auto-watch state
+  POST /watch            — Enable/disable the listen-folder watcher
   GET  /                — Serves the frontend UI
 """
 
@@ -46,7 +52,7 @@ from .config import (
 )
 # NOTE: DATA_DIR (the legacy global data/ folder) is intentionally no longer
 # imported here — the pipeline now reads/writes per-project folders
-# (PROJECT_ROOT/<project_id>/{CLINICAL,FE,CE}/) instead of a shared data/ tree.
+# (PROJECT_ROOT/<project_id>/{CLINS,FE,CE}/) instead of a shared data/ tree.
 from .logger import get_logger
 from .pipeline import (
     DossierPipeline,
@@ -60,6 +66,13 @@ from .classifier import (
 )
 from .converter import _is_junk_filename
 from .page_index import delete_index, index_exists
+from .orchestrator import (
+    CONDENSED_DIR_NAME,
+    get_events,
+    run_all_start,
+    run_all_status,
+    watcher,
+)
 
 logger = get_logger("api")
 
@@ -103,6 +116,10 @@ class ScanRequest(BaseModel):
 
 class ListenFolderRequest(BaseModel):
     path: str  # absolute path of the user-configured watch folder
+
+
+class WatchRequest(BaseModel):
+    enabled: bool  # turn the auto-watch on/off
 
 
 class QueriesSaveRequest(BaseModel):
@@ -151,10 +168,29 @@ async def index():
 # NOTE: the path value is intentionally NEVER written to logs.
 # ---------------------------------------------------------------------------
 
+def _default_listen_folder() -> str:
+    """Default listen folder: %HOMEDRIVE%%HOMEPATH%/Documents.
+
+    Used when the user has not saved any listen folder yet, so the input is
+    pre-filled with a sensible per-user location.
+    """
+    drive = os.environ.get("HOMEDRIVE", "")
+    home = os.environ.get("HOMEPATH", "")
+    base = Path(drive + home) if (drive or home) else Path.home()
+    return str(base / "Documents")
+
+
 @app.get("/config/listen-folder")
 async def get_listen_folder_config():
-    """Return the user-configured watch folder (base path for projects)."""
-    return {"ok": True, "path": get_listen_folder() or ""}
+    """Return the user-configured watch folder (base path for projects).
+
+    Falls back to %HOMEDRIVE%%HOMEPATH%/Documents when nothing is saved yet
+    (`is_default` tells the frontend the value is a suggestion, not saved).
+    """
+    saved = get_listen_folder()
+    if saved:
+        return {"ok": True, "path": saved, "is_default": False}
+    return {"ok": True, "path": _default_listen_folder(), "is_default": True}
 
 
 @app.post("/config/listen-folder")
@@ -253,7 +289,7 @@ async def scan_project(req: ScanRequest):
 
     The project folder is PROJECT_ROOT/<project_name>/. Top-level dossier
     files (pdf/pptx/docx, excluding Office lock files / OS cruft) are listed.
-    Already-classified subfolders (CLINICAL/FE/CE) are ignored so a re-scan
+    Already-classified subfolders (CLINS/FE/CE) are ignored so a re-scan
     does not double-count.
     """
     name = (req.project_name or "").strip()
@@ -292,7 +328,7 @@ async def scan_project(req: ScanRequest):
 
 @app.post("/ingest")
 async def ingest(project_id: str = "default"):
-    """Run ingest: parse all PDFs in PROJECT_ROOT/<project_id>/{CLINICAL,FE,CE}/ and build the index."""
+    """Run ingest: parse all PDFs in PROJECT_ROOT/<project_id>/{CLINS,FE,CE}/ and build the index."""
     pipeline = _get_pipeline(project_id)
     try:
         count = pipeline.ingest()
@@ -488,7 +524,7 @@ async def confirm_classification(req: ClassifyConfirmRequest, project_id: str = 
     Query param:
         project_id: str  (the project folder name)
     Body (JSON):
-        decisions: [ {"filename": "...", "report_type": "CLINICAL"}, ... ]
+        decisions: [ {"filename": "...", "report_type": "CLINS"}, ... ]
 
     Already-correct files are skipped; low-confidence and corrected files
     are moved to their chosen folder.
@@ -520,7 +556,7 @@ async def save_classify_profiles_endpoint(req: ClassifyProfileSaveRequest):
     """Save type profiles to classify/*.txt.
 
     Body (JSON):
-        profiles: {"CLINICAL": "...", "FE": "...", "CE": "..."}
+        profiles: {"CLINS": "...", "FE": "...", "CE": "..."}
     """
     try:
         for rt in req.profiles:
@@ -547,7 +583,7 @@ async def get_queries():
     """Read current per-type query texts from queries/*.txt files.
 
     Returns:
-        {"CLINICAL": "...", "FE": "...", "CE": "..."}
+        {"CLINS": "...", "FE": "...", "CE": "..."}
     """
     try:
         queries = load_queries_from_files()
@@ -562,7 +598,7 @@ async def save_queries(req: QueriesSaveRequest):
     """Save per-type query texts to queries/*.txt files.
 
     Body (JSON):
-        queries: {"CLINICAL": "...", "FE": "...", "CE": "..."}
+        queries: {"CLINS": "...", "FE": "...", "CE": "..."}
     """
     try:
         # Validate that all keys are known report types
@@ -579,6 +615,65 @@ async def save_queries(req: QueriesSaveRequest):
     except Exception as e:
         logger.exception("Failed to save queries")
         raise HTTPException(500, str(e))
+
+
+# ---------------------------------------------------------------------------
+# One-click full workflow + auto-watch (orchestrator)
+# ---------------------------------------------------------------------------
+
+@app.post("/run-all")
+async def run_all():
+    """One-click workflow: for EVERY eligible project folder under the listen
+    folder run scan -> classify -> ingest -> package, then export the PDF to
+    <listen>/Dossier_condensed/. Runs in a background thread; poll
+    /run-all/status for progress.
+    """
+    if not get_listen_folder():
+        raise HTTPException(400, "No listen folder configured — save one first")
+    return run_all_start()
+
+
+@app.get("/run-all/status")
+async def run_all_job_status():
+    """Progress of the one-click run (stage tracker data)."""
+    return {"ok": True, **run_all_status()}
+
+
+@app.get("/activity")
+async def activity(since: int = 0):
+    """Incremental activity feed for the frontend log (id > since)."""
+    return {"ok": True, **get_events(since)}
+
+
+@app.get("/watch")
+async def watch_status():
+    """Current auto-watch state."""
+    return {"ok": True, **watcher.status()}
+
+
+@app.post("/watch")
+async def watch_toggle(req: WatchRequest):
+    """Enable/disable the listen-folder watcher.
+
+    When ON, any NEW project folder dropped into the listen folder (excluding
+    /Dossier_condensed) is auto-processed once its upload finishes.
+    """
+    try:
+        if req.enabled:
+            if not get_listen_folder():
+                raise HTTPException(
+                    400, "No listen folder configured — save one first"
+                )
+            watcher.start()
+        else:
+            watcher.stop()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Watch toggle failed")
+        raise HTTPException(500, str(e))
+    return {"ok": True, **watcher.status()}
+
 
 # ---------------------------------------------------------------------------
 

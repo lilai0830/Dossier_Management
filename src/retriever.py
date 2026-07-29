@@ -6,7 +6,7 @@ selectors (page-selection stage, distinct from document classification which
 uses classify/*.txt). Neither selector depends on the other's output:
 
   A) Keyword selector   — rank every page of a type by lexical score against
-     queries/{CLINICAL,FE,CE}.txt and keep the top `top_n` (the "summary pages",
+     queries/{CLINS,FE,CE}.txt and keep the top `top_n` (the "summary pages",
      on-topic, high textual relevance).
   B) Structure selector — rank every page of a type by structural richness
      (figures + table + list) and keep the top `top_n` (the "figure /

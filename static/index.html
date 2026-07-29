@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance Dossier Management — Document Pipeline</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/static/style.css?v=13">
+<link rel="stylesheet" href="/static/style.css?v=14">
 </head>
 <body>
 
@@ -18,207 +18,140 @@
     <p class="subtitle">A route to AI synthesis</p>
   </header>
 
-  <!-- Stepper -->
-  <nav class="stepper" id="stepper">
-    <button type="button" class="step-pill active" data-goto="1">
-      <span class="num">1</span><span class="lbl">Configure</span>
-    </button>
-    <button type="button" class="step-pill" data-goto="2">
-      <span class="num">2</span><span class="lbl">Classify</span>
-    </button>
-    <button type="button" class="step-pill" data-goto="3">
-      <span class="num">3</span><span class="lbl">Configure &amp; Run</span>
-    </button>
-  </nav>
-  <div class="step-indicator" id="step-indicator"></div>
-
-  <!-- ============ STEP 1: CONFIGURE PROJECT ============ -->
-  <div class="step-page active" data-step="1">
-
-    <!-- Configure: project name -> folder on disk -->
-    <section class="card" id="config-section">
-      <div class="card-head">
-        <h2>1. Configure Project</h2>
-        <div class="card-actions">
-          <button class="btn btn-sm btn-danger" id="btn-reset"
-            title="Safe reset: clear this project's index, screenshots and generated PDF only. Your dossier files in the project folder are never deleted.">Reset</button>
-        </div>
-      </div>
-      <p class="hint">Set the <strong>Listen Folder</strong> (base directory where your projects live), then enter the project name. The app looks for a folder with that name under the Listen Folder and scans the dossiers inside it. Classified files are written into <strong>&lt;project&gt;/CLINICAL</strong>, <strong>FE</strong>, <strong>CE</strong>. The Listen Folder path is saved locally and reused next time.</p>
-
-      <div class="form-row">
-        <label for="listen-folder">Listen Folder Path</label>
-        <div class="folder-input-group">
-          <input type="text" id="listen-folder" placeholder="e.g. D:\Projects\Dossiers" autocomplete="off">
-          <button class="btn btn-sm btn-outline" id="btn-browse-folder" type="button"
-            title="Open a folder picker to choose the base watch folder">Browse</button>
-          <button class="btn btn-sm btn-outline" id="btn-save-folder" type="button"
-            title="Save this folder path to disk (persisted across restarts)">Save Path</button>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <label for="project-name">Project Name</label>
-        <input type="text" id="project-name" placeholder="e.g. PROJ-001" autocomplete="off">
-      </div>
-
-      <div class="button-row">
-        <button class="btn btn-primary" id="btn-scan"
-          title="Locate PROJECT_ROOT/<project name>/ and list the dossier files inside it">Scan Folder</button>
-      </div>
-
-      <div id="scan-result" class="hidden">
-        <p id="scan-path" class="muted"></p>
-        <div id="scan-file-list" class="file-list"></div>
-      </div>
-    </section>
-
-    <!-- Step 1 nav (home page: no Back, only Next) -->
-    <div class="step-nav step-nav--single">
-      <button type="button" class="btn btn-primary btn-next">Next &rarr;</button>
+  <!-- ============ 1. Listen Folder ============ -->
+  <section class="card" id="config-section">
+    <div class="card-head">
+      <h2>1. Listen Folder</h2>
     </div>
-  </div>
+    <p class="hint">Set the <strong>Listen Folder</strong> (base directory where your project folders live). New project folders dropped into it can be processed with one click — or automatically when Auto-Watch is on. The path is saved locally and reused next time.</p>
 
-  <!-- ============ STEP 2: CLASSIFY DOSSIERS ============ -->
-  <div class="step-page" data-step="2">
-
-    <!-- Distinct render frame to separate classification from configuration -->
-    <div class="classify-frame">
-      <h2>2. Classify Dossiers</h2>
-      <p class="hint">Run auto-classification to sort the project's dossiers into CLINICAL / FE / CE. Tune the classification anchors below if a document is mis-sorted.</p>
-
-      <div class="button-row">
-        <button class="btn btn-primary" id="btn-classify"
-          title="Auto-classify each dossier in the project folder by its first page, then move every file into its predicted folder (project/CLINICAL | FE | CE) in one step">Classify</button>
-      </div>
-
-      <div id="classify-table-wrap" class="hidden">
-        <table class="classify-table">
-          <thead>
-            <tr><th>Filename</th><th>Type</th><th>Confidence</th><th>Status</th></tr>
-          </thead>
-          <tbody id="classify-tbody"></tbody>
-        </table>
-      </div>
-
-      <div class="toggle-row" id="toggle-profiles">
-        <span class="toggle-arrow">&#9654;</span>
-        <span class="toggle-label">Customize Type Profiles</span>
-        <span class="toggle-hint">Click to edit classification anchors</span>
-      </div>
-      <p class="panel-hint">Classification frame: uses keywords from each document's first 1&ndash;2 pages to auto-sort it into CLINICAL / FE (Sensory) / CE.</p>
-      <div class="queries-panel hidden" id="profiles-panel">
-        <div class="query-editor" data-type="CLINICAL">
-          <label>CLINICAL &mdash; Clinical</label>
-          <textarea id="profile-CLINICAL" rows="3"></textarea>
-        </div>
-        <div class="query-editor" data-type="FE">
-          <label>FE &mdash; Sensory</label>
-          <textarea id="profile-FE" rows="3"></textarea>
-        </div>
-        <div class="query-editor" data-type="CE">
-          <label>CE &mdash; Consumer Evaluation</label>
-          <textarea id="profile-CE" rows="3"></textarea>
-        </div>
-        <button class="btn btn-sm btn-outline" id="btn-save-profiles"
-          title="Write the edited classification anchors back to classify/*.txt">Save</button>
+    <div class="form-row">
+      <label for="listen-folder">Listen Folder Path</label>
+      <div class="folder-input-group">
+        <input type="text" id="listen-folder" placeholder="e.g. D:\Projects\Dossiers" autocomplete="off">
+        <button class="btn btn-sm btn-outline" id="btn-browse-folder" type="button"
+          title="Open a folder picker to choose the base watch folder">Browse</button>
+        <button class="btn btn-sm btn-outline" id="btn-save-folder" type="button"
+          title="Save this folder path to disk (persisted across restarts)">Save Path</button>
       </div>
     </div>
+  </section>
 
-    <!-- Step 2 nav -->
-    <div class="step-nav">
-      <button type="button" class="btn btn-outline btn-back">&larr; Back</button>
-      <button type="button" class="btn btn-primary btn-next">Next &rarr;</button>
+  <!-- ============ 2. Configuration (collapsed editors) ============ -->
+  <section class="card">
+    <h2>2. Configuration</h2>
+    <p class="hint">Optional. Tune the classification anchors and page-selection queries. Defaults work for most dossiers.</p>
+
+    <!-- 2a. Classification anchors (classify/*.txt) -->
+    <div class="toggle-row" id="toggle-profiles">
+      <span class="toggle-arrow">&#9654;</span>
+      <span class="toggle-label">Classification Config</span>
+      <span class="toggle-hint">Click to edit classification anchors (classify/*.txt)</span>
     </div>
-  </div>
-
-  <!-- ============ STEP 3: CONFIGURE & RUN ============ -->
-  <div class="step-page" data-step="3">
-
-    <section class="card">
-      <h2>3. Configure &amp; Run Pipeline</h2>
-
-      <div class="form-row">
-        <label>Project</label>
-        <div id="project-path" class="muted">Enter a project name in Step 1 and scan it.</div>
+    <div class="queries-panel hidden" id="profiles-panel">
+      <p class="panel-hint">Classification frame: uses keywords from each document's first 1&ndash;2 pages to auto-sort it into CLINS / FE (Sensory) / CE.</p>
+      <div class="query-editor" data-type="CLINS">
+        <label>CLINS &mdash; Clinical</label>
+        <textarea id="profile-CLINS" rows="3"></textarea>
       </div>
-
-      <div class="form-row">
-        <label for="project-owner">Project Owner</label>
-        <input type="text" id="project-owner" placeholder="Project Owner">
+      <div class="query-editor" data-type="FE">
+        <label>FE &mdash; Sensory</label>
+        <textarea id="profile-FE" rows="3"></textarea>
       </div>
-
-      <div class="form-row">
-        <label for="target-formula">Target Formula</label>
-        <input type="text" id="target-formula" placeholder="Target Formula">
+      <div class="query-editor" data-type="CE">
+        <label>CE &mdash; Consumer Evaluation</label>
+        <textarea id="profile-CE" rows="3"></textarea>
       </div>
+      <button class="btn btn-sm btn-outline" id="btn-save-profiles"
+        title="Write the edited classification anchors back to classify/*.txt">Save</button>
+    </div>
 
-      <!-- Pages per type (per-report-type cap) -->
-      <div class="form-row">
-        <label for="top-n">Maximum Pages per Type</label>
-        <input type="number" id="top-n" min="1" max="50" step="1"
-          value="12" placeholder="12"
-          title="Maximum number of pages kept for EACH report type (CLINICAL / FE / CE) after parallel keyword + structure selection. Empty = default 12. Check 'All' to remove the cap.">
-        <label class="checkbox-inline" title="Remove the per-type cap and keep every page chosen by either selector">
-          <input type="checkbox" id="top-n-all"> All (no cap)
-        </label>
-      </div>
-      <p class="mode-hint">Caps how many pages each type contributes to the final PDF. Leave empty for the default (12).<br>Select "All" only when the number of performance_dossiers is small.</p>
-
-      <!-- Customize queries (collapsible) -->
-      <div class="toggle-row" id="toggle-queries">
-        <span class="toggle-arrow">&#9654;</span>
-        <span class="toggle-label">Customize Per-Type Queries</span>
-        <span class="toggle-hint">Click to expand &amp; edit query text for each report type</span>
-      </div>
+    <!-- 2b. Page-selection queries (queries/*.txt) -->
+    <div class="toggle-row" id="toggle-queries">
+      <span class="toggle-arrow">&#9654;</span>
+      <span class="toggle-label">Page-Selection Config</span>
+      <span class="toggle-hint">Click to edit page-selection queries (queries/*.txt)</span>
+    </div>
+    <div class="queries-panel hidden" id="queries-panel">
       <p class="panel-hint">Page-selection queries: at package time two parallel selectors run &mdash; keyword match picks on-topic summary pages, and layout structure (figures / lists / tables) picks information-dense pages &mdash; then both sets are merged for the downstream AI.</p>
-
-      <div class="queries-panel hidden" id="queries-panel">
-        <div class="query-editor" data-type="CLINICAL">
-          <label>CLINICAL &mdash; Clinical</label>
-          <textarea id="query-CLINICAL" rows="3"></textarea>
-        </div>
-        <div class="query-editor" data-type="FE">
-          <label>FE &mdash; Sensory</label>
-          <textarea id="query-FE" rows="3"></textarea>
-        </div>
-        <div class="query-editor" data-type="CE">
-          <label>CE &mdash; Consumer Evaluation</label>
-          <textarea id="query-CE" rows="3"></textarea>
-        </div>
-        <button class="btn btn-sm btn-outline" id="btn-save-queries"
-          title="Write the edited page-selection queries back to queries/*.txt">Save</button>
+      <div class="query-editor" data-type="CLINS">
+        <label>CLINS &mdash; Clinical</label>
+        <textarea id="query-CLINS" rows="3"></textarea>
       </div>
-
-      <div class="button-row">
-        <button class="btn btn-accent" id="btn-run"
-          title="Ingest all PDFs for this project, select pages, and package them into a single synthesis PDF">Run (Ingest &amp; Package)</button>
+      <div class="query-editor" data-type="FE">
+        <label>FE &mdash; Sensory</label>
+        <textarea id="query-FE" rows="3"></textarea>
       </div>
-
-      <div class="button-row secondary">
-        <button class="btn btn-sm btn-outline" id="btn-status"
-          title="Show how many pages are currently indexed for this project">Status</button>
+      <div class="query-editor" data-type="CE">
+        <label>CE &mdash; Consumer Evaluation</label>
+        <textarea id="query-CE" rows="3"></textarea>
       </div>
-    </section>
-
-    <section class="card" id="output-section">
-      <h2>Output</h2>
-      <div id="output-placeholder" class="muted">Run the pipeline to generate a synthesis PDF.</div>
-      <div id="output-result" class="hidden">
-        <p class="success">Synthesis PDF generated successfully.</p>
-        <a id="download-link" class="btn btn-primary" href="#" download
-          title="Download the generated synthesis PDF">Download PDF</a>
-      </div>
-    </section>
-
-    <!-- Step 3 nav -->
-    <div class="step-nav">
-      <button type="button" class="btn btn-outline btn-back">&larr; Back</button>
-      <button type="button" class="btn btn-primary btn-next">Next &rarr;</button>
+      <button class="btn btn-sm btn-outline" id="btn-save-queries"
+        title="Write the edited page-selection queries back to queries/*.txt">Save</button>
     </div>
-  </div>
+  </section>
 
-  <!-- Log / Progress (persistent across steps) -->
+  <!-- ============ 3. Run Pipeline (one-click workflow) ============ -->
+  <section class="card run-card">
+    <h2>3. Run Pipeline</h2>
+    <p class="hint">One click runs the whole pipeline for every project folder found in the Listen Folder: <strong>scan &rarr; classify &rarr; ingest &rarr; package</strong>. Finished PDFs are saved to <strong>&lt;Listen Folder&gt;/Dossier_condensed/</strong>.</p>
+
+    <div class="button-row">
+      <button class="btn btn-accent btn-run-all" id="btn-run-all"
+        title="Run the full pipeline (scan, classify, ingest, package, export) for all project folders">
+        &#9654;&nbsp; Run Full Pipeline
+      </button>
+    </div>
+
+    <div class="run-dest">
+      <span class="dest-label">Output</span>
+      <span id="dest-path"></span>
+    </div>
+
+    <!-- stage tracker: hidden until a run starts -->
+    <div class="stage-track hidden" id="stage-track">
+      <span class="stage" data-stage="scan"><span class="dot">1</span>Scan</span>
+      <span class="stage-sep"></span>
+      <span class="stage" data-stage="classify"><span class="dot">2</span>Classify</span>
+      <span class="stage-sep"></span>
+      <span class="stage" data-stage="ingest"><span class="dot">3</span>Ingest</span>
+      <span class="stage-sep"></span>
+      <span class="stage" data-stage="package"><span class="dot">4</span>Package</span>
+      <span class="stage-sep"></span>
+      <span class="stage" data-stage="export"><span class="dot">5</span>Export</span>
+    </div>
+    <p class="muted hidden" id="run-progress" style="margin-top:8px;"></p>
+
+    <div id="run-result" class="hidden" style="margin-top:14px;">
+      <p class="success" id="run-result-text"></p>
+    </div>
+  </section>
+
+  <!-- ============ 4. Auto-Watch ============ -->
+  <section class="card watch-card">
+    <h2>4. Auto-Watch</h2>
+    <div class="watch-row">
+      <div class="watch-text">
+        <div class="watch-title">
+          <span class="live-dot" id="live-dot"></span>
+          Watch Listen Folder
+          <span class="watch-state" id="watch-state">OFF</span>
+        </div>
+        <div class="watch-sub">
+          When ON, the app monitors the Listen Folder. Any <strong>new project folder</strong> dropped in
+          is picked up (after its upload finishes) and the full pipeline runs automatically. Results go to
+          <strong>Dossier_condensed/</strong>.
+        </div>
+        <div class="watch-exclude">excluded from watch: /Dossier_condensed</div>
+      </div>
+      <label class="switch" title="Toggle automatic folder watching">
+        <input type="checkbox" id="watch-toggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </section>
+
+  <!-- Log -->
   <section class="card">
     <h2>Log</h2>
     <pre id="log-area" class="log"></pre>
@@ -248,7 +181,7 @@
   </div>
 </div>
 
-<script src="/static/app.js?v=19"></script>
+<script src="/static/app.js?v=20"></script>
 
 </body>
 </html>

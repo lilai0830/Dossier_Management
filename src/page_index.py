@@ -20,7 +20,7 @@ logger = get_logger("page_index")
 
 
 def collect_pdf_paths(base_dir: Path | None = None) -> list[Path]:
-    """Walk <base_dir>/{CLINICAL,FE,CE}/, normalize pptx/docx -> PDF, collect PDFs.
+    """Walk <base_dir>/{CLINS,FE,CE}/, normalize pptx/docx -> PDF, collect PDFs.
 
     ``base_dir`` is the per-project dossier folder (PROJECT_ROOT / project_name).
     When omitted it falls back to the legacy global DATA_DIR.

@@ -2,7 +2,7 @@
 PDF parsing module — PyMuPDF (fitz)
 
 Handles text extraction, page screenshots at 2x resolution.
-report_type is inferred from the parent directory name (CLINICAL / FE / CE).
+report_type is inferred from the parent directory name (CLINS / FE / CE).
 """
 
 import hashlib

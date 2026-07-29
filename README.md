@@ -2,7 +2,7 @@
 
 A **local, offline, human-in-the-loop** pipeline that extracts the summary pages
 (high-resolution screenshot + structured annotation) from project reports
-(CLINICAL / FE / CE), and merges them into a single PDF for a downstream
+(CLINS / FE / CE), and merges them into a single PDF for a downstream
 multimodal LLM (L'OréalGPT) to synthesize.
 
 > The pipeline **prepares evidence**; it does **not** draw the final conclusions.
@@ -14,7 +14,7 @@ multimodal LLM (L'OréalGPT) to synthesize.
 
 | Type         | Meaning             | First-page signal used for auto-classification |
 | ------------ | ------------------- | ---------------------------------------------- |
-| `CLINICAL` | Clinical            | clinical study / dermatological signals        |
+| `CLINS` | Clinical            | clinical study / dermatological signals        |
 | `FE`       | Sensory             | sensory evaluation signals                     |
 | `CE`       | Consumer Evaluation | consumer test / panel signals                  |
 
@@ -75,7 +75,7 @@ Word installed.*
    source folder *is* the input.)
 2. **Auto-classify** — each doc's first page is scored (keyword match) against
    `classify/*.txt` anchors. High-confidence docs are auto-filed into
-   `<project_name>/CLINICAL` / `FE` / `CE`; low-confidence docs stay in the
+   `<project_name>/CLINS` / `FE` / `CE`; low-confidence docs stay in the
    project folder, flagged in the UI for review.
 3. **(Optional) Tune the analysis frame** — edit the per-type queries in the
    UI (persisted to `queries/*.txt`). This defines *what a "summary page" looks like*.
@@ -107,7 +107,7 @@ pip install -r requirements.txt
 python main.py serve --port 8000        # then open http://localhost:8000
 
 # CLI — <project_id> names a folder under the project root that holds the
-# raw dossiers; classified files are written to <project_id>/{CLINICAL,FE,CE}/.
+# raw dossiers; classified files are written to <project_id>/{CLINS,FE,CE}/.
 python main.py classify --project-id PROJ-001   # propose + file types for PROJ-001/
 python main.py ingest   --project-id PROJ-001
 python main.py package  PROJ-001
@@ -122,11 +122,11 @@ python main.py reset    --project-id PROJ-001   # clear index + screenshots
 ```
 <project_name>/              a project folder under the project root; holds the
                             raw dossiers to classify (the input — no upload)
-<project_name>/CLINICAL,
+<project_name>/CLINS,
 <project_name>/FE,
 <project_name>/CE           classified outputs (report_type inferred from folder)
-queries/{CLINICAL,FE,CE}.txt      per-type query term lists (editable)
-classify/{CLINICAL,FE,CE}.txt     per-type classification anchors (editable)
+queries/{CLINS,FE,CE}.txt      per-type query term lists (editable)
+classify/{CLINS,FE,CE}.txt     per-type classification anchors (editable)
 index_projects/             lightweight page-text index (JSON, keyed by project, no vectors)
 screenshots/                300 DPI page screenshots (auto-generated)
 output/                     final synthesis PDF
