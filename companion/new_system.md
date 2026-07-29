@@ -81,184 +81,108 @@ You must output ONLY a valid JSON object strictly adhering to the following sche
 {
 
   "project_info": {
-
     "report_name": "string (Extract the full report title or objective)",
-
     "target_formula": "string (Extract TARGET formula number or sponsor code, e.g. '774715 21'; null if not found)",
-
     "comparator_formulas": ["string (Other formula numbers appearing as comparators / controls; empty array if none)"]
-
   },
 
- 
-
   "data_discovery_index": {
-
     "_instruction": "List all evaluated metrics GROUPED BY THE STUDY/REPORT they belong to. This strictly prevents metrics with the same name in different studies from overwriting each other.",
 
     "clinical_studies_detected": [
-
       {
-
         "study_name": "string (e.g., 'Double-blind Clinical Study', 'In-vivo Instrumental Test', 'Consumer Perception Questionnaire')",
-
         "metrics_tested": [
-
           "string (e.g., 'Transepidermal water loss (TEWL)', 'Hair tensile strength', 'Sebum secretion rate', 'Skin firmness', 'Makeup wear time')"
-
         ]
-
       }
-
     ],
 
     "instrumental_studies_detected": [
-
       {
-
         "study_name": "string (e.g., 'China Efficacy 12-Week', 'SGS Forearm Hydration')",
-
         "metrics_tested": [
-
           "string (e.g., 'Corneometer - Skin hydration', 'Primos - Forehead wrinkles count')"
-
         ]
-
       }
-
     ],
 
     "consumer_studies_detected": [
-
       {
-
         "study_name": "string",
-
         "metrics_tested": [
-
           "string (e.g., 'Skin/Hair feels softer', 'Long-lasting effect agreed')"
-
         ]
-
       }
-
     ]
 
   },
-
  
-
   "conviction_performance": {
 
     "clinical_results": [
-
       {
-
         "study_name": "string (Must match exactly a study_name from data_discovery_index)",
-
         "metric_name": "string (Must match exactly a metric from metrics_tested)",
-
         "timepoints_data": [
-
           {
-
             "time": "string (e.g., 'T4W', 'T12W')",
-
             "percentage_change": "string (e.g., '-58.00%', '+9.3%')",
-
             "is_significant": "boolean",
-
             "color_code": "string (Enum: 'green', 'red' , 'yellow' , 'none'. Extract based on font color or cell color, and extract only if data is color-coded, otherwise 'none')"
-
           }
-
         ]
-
       }
-
     ],
 
     "instrumental_results": [
-
       {
-
         "study_name": "string (Must match exactly a study_name from data_discovery_index)",
-
         "instrument_name": "string (e.g., 'Corneometer', 'Tewameter', 'Primos', 'UC22')",
-
         "metric_name": "string (e.g., 'Skin hydration', 'Thickness of dermis')",
-
         "timepoints_data": [
-
           {
-
             "time": "string (e.g., 'T1h', 'T8W')",
-
             "percentage_change": "string (e.g., '+146.92%', '-27.11%')",
-
             "color_code": "string (Enum: 'green', 'red' , 'yellow' , 'none'. Extract based on font color or cell color, and extract only if data is color-coded, otherwise 'none')"
-
           }
-
         ]
-
       }
-
     ],
 
     "consumer_results": [
-
       {
-
         "study_name": "string (Must match exactly a study_name from data_discovery_index)",
-
         "metric_name": "string (Must be the specific claim, e.g., 'Skin looks firmer', DO NOT use category headers like 'Anti-Aging')",
-
         "timepoints_data": [
-
           {
-
             "time": "string (e.g., 'Week 12')",
-
             "acceptance_rate": "string (e.g., '97.3%')",
-
             "color_code": "string (Enum: 'green', 'red' , 'yellow' , 'none'. Extract based on font color or cell color, and extract only if data is color-coded, otherwise 'none')"
-
           }
-
         ]
-
       }
-
     ]
 
   },
 
- 
-
   "unclassified_or_notes": "string (If any crucial conviction data cannot fit the above schema, or if you noticed a severe OCR conflict/error, describe it here. Otherwise, return null.)",
 
- 
-
   "pagination": {
-
     "is_incomplete": "boolean (如果由于内容太多，只输出了临床和仪器数据，消费者数据还未输出，填 true)",
-
     "pending_modules": ["string (列出尚未提取的模块，例如 'Consumer Questionnaire')"],
-
     "user_prompt_suggestion": "string (如果 is_incomplete 为 true，填入提示语，例如：'💡 提取的数据量过大，为保证准确性已主动暂停。请回复【继续】以获取剩余的消费者问卷数据。')"
-
   }
 
 }
 ```
 
-**Schema notes (extensions to the reference framework, added to support the synthesis deck):**
+**Schema notes:**
 
-- `target_formula` + `comparator_formulas` replace the single `formula_number` so the deck's Target-vs-Comparator comparison works.
+- `target_formula` + `comparator_formulas` supports Target-vs-Comparator comparison works.
 - `subject` on every row binds the value to a specific formula (target or comparator).
-- `source` (`file` + `page`) on every row enables the deck's References slide and `[N]` citations.
-- `status` (green/yellow/red/null) on every value is the three-state color consumed by `@summarize`.
+- `source` (`file` + `page`) on every row enables the References list and `[N]` citations.
+- `color_code` (green/yellow/red/none) on every value is the three-state color consumed by `@summarize`.
 
 ---
 
@@ -276,25 +200,21 @@ You must output ONLY a valid JSON object strictly adhering to the following sche
 
 ### Output Format
 
-依照上几轮所提取的数据，给我一个CONVIVTION/PERFORMANCE报告，用markdown格式输出。输出格式参考以下：
+依照上几轮所提取的数据，给我一个*CONVICTION/PERFORMANCE*报告，用markdown格式输出。输出格式参考以下：
 
----
-
-### CONVICTION/PERFORMANCE:
-
-#### Measured Efficacy
+```markdown
+# *CONVICTION/PERFORMANCE*:
+## Measured Efficacy
 
 - TEST 1 :
-
   - Finding 1: metric xx%[green], metric xx%[green],metric xx%[green]...metric xx%[green].
   - Finding 2: metric ......
+  
 - TEST 2:
-
   - Finding 1: metric xx%[green], metric xx%[green],metric xx%[green]...metric xx%[green].
   - Finding 2: metric ......
+  
 - TEST 3:
-
   - Finding 1: metric xx%[green], metric xx%[green],metric xx%[green]...metric xx%[green].
   - Finding 2: metric ......
-
----
+```
