@@ -962,14 +962,14 @@ body {
   50%      { box-shadow: 0 0 0 6px rgba(176,125,43,0); }
 }
 
-/* --- Auto-watch card --- */
-.watch-card { border-left: 4px solid var(--primary); }
-
+/* --- Auto-watch row (now inside the Listen Folder card) --- */
 .watch-row {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 4px 0;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
 }
 .watch-text { flex: 1 1 auto; }
 .watch-title {

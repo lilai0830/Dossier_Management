@@ -148,11 +148,6 @@ class PDFGenerator:
         """
         output_path = OUTPUT_DIR / f"synthesis_input_{project_id}.pdf"
 
-        # Footer text is drawn per page via the onPage callback. We collect
-        # one entry per physical page (cover + section headers + each report
-        # page) in the same order the story is built. Empty string = no footer.
-        page_footers: list[str] = [""]  # cover
-
         doc = SimpleDocTemplate(
             str(output_path),
             pagesize=landscape(A4),
@@ -176,24 +171,12 @@ class PDFGenerator:
             items = groups.get(report_type, [])
             if not items:
                 continue
-            story.append(Paragraph(
-                f"Section: {report_type} Reports",
-                self._styles["heading"],
-            ))
-            story.append(Spacer(1, 4 * mm))
-            story.append(PageBreak())  # section header on its own page
-            page_footers.append("")    # section header page has no footer
 
             for idx, item in enumerate(items, 1):
-                footer = self._add_report_page(story, item, idx)
-                page_footers.append(footer)
+                self._add_report_page(story, item, idx)
                 story.append(PageBreak())
 
-        doc.build(
-            story,
-            onFirstPage=lambda canvas, doc: self._draw_footer(canvas, doc, page_footers),
-            onLaterPages=lambda canvas, doc: self._draw_footer(canvas, doc, page_footers),
-        )
+        doc.build(story)
         logger.info(
             f"PDF generated: {output_path} "
             f"({len(summary_pages)} summary pages)"
@@ -268,111 +251,22 @@ class PDFGenerator:
         story.append(Paragraph(" | ".join(meta_parts), self._styles["meta"]))
         story.append(Spacer(1, 6 * mm))
 
-        # --- Table of contents (guides downstream AI to map every #N page
-        # back to its source file / type / source page) -------------------
-        self._add_toc(story, summary_pages)
         story.append(PageBreak())
-
-    def _add_toc(self, story: list, summary_pages: list[dict]):
-        """Render a cover Table of Contents mapping every selected page back
-        to its origin, so the downstream AI can locate and cite each page.
-
-        Two-column layout keeps the TOC on the cover even for large dossiers.
-        Columns per side: #N (per-type index, matching the page footer),
-        Source File (no extension), Type (CLINS/FE/CE), Source Page.
-        """
-        groups = self._group_and_sort(summary_pages)
-        rows = []
-        for rt in REPORT_TYPES:
-            items = groups.get(rt, [])
-            for i, item in enumerate(items, 1):
-                raw_name = item.get("filename", "unknown")
-                src = Path(raw_name).stem or raw_name
-                rows.append([str(i), src, rt, str(item.get("page_label", "?"))])
-
-        # CJK-capable style for the (possibly Chinese) source-file column
-        src_style = ParagraphStyle(
-            "TocSrc",
-            parent=self._styles["body"],
-            fontName=_CJK_FONT if _CJK_AVAILABLE else "Helvetica",
-            fontSize=8,
-            leading=9.5,
-            spaceAfter=0,
-        )
-        header = ["#N", "Source File", "Type", "Source Page"]
-        sub_widths = [14 * mm, 70 * mm, 22 * mm, 18 * mm]
-
-        def _build_sub(chunk: list):
-            data = [header]
-            for row in chunk:
-                data.append([row[0], Paragraph(row[1], src_style), row[2], row[3]])
-            t = Table(data, colWidths=sub_widths, repeatRows=1)
-            style = [
-                ("GRID", (0, 0), (-1, -1), 0.4, "#d0d0d0"),
-                ("BACKGROUND", (0, 0), (-1, 0), "#2c3e50"),
-                ("TEXTCOLOR", (0, 0), (-1, 0), "#ffffff"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("ALIGN", (2, 0), (3, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 1.0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 1.0),
-                ("LEFTPADDING", (0, 0), (-1, -1), 3),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-            ]
-            for r in range(1, len(data)):
-                if r % 2 == 0:
-                    style.append(("BACKGROUND", (0, r), (-1, r), "#f4f6f8"))
-            t.setStyle(TableStyle(style))
-            return t
-
-        half = (len(rows) + 1) // 2
-        left_t = _build_sub(rows[:half])
-        right_t = _build_sub(rows[half:])
-
-        outer = Table([[left_t, right_t]], colWidths=[124 * mm, 124 * mm])
-        outer.setStyle(TableStyle([
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LINEAFTER", (0, 0), (0, 0), 0.4, "#d0d0d0"),
-        ]))
-
-        story.append(Paragraph(
-            "Table of Contents / 目录",
-            ParagraphStyle(
-                "TocHeading",
-                parent=self._styles["heading"],
-                spaceBefore=0,
-                spaceAfter=4,
-            ),
-        ))
-        story.append(Paragraph(
-            "Each entry is one <b>independent evidence page</b> in this "
-            "dossier. The <b>#N</b> index matches that page's footer — treat "
-            "every page as a separate evidence item and cite it "
-            "independently; never merge or skip a page.",
-            self._styles["body"],
-        ))
-        story.append(Spacer(1, 3 * mm))
-        story.append(outer)
 
     def _add_report_page(
         self,
         story: list,
         item: dict,
         index: int,
-    ) -> str:
+    ) -> None:
         """Append the screenshot for one report page to the story.
 
         The output PDF is landscape (A4 landscape) because the source
         material users upload (PDF/PPT) is landscape, so the screenshot
-        fills the full page width and stays crisp. The one-line annotation
-        is returned so the caller can draw it at the bottom of the page
-        via the onPage callback.
+        fills the full page width and stays crisp. A one-line annotation
+        (the page's owning report / source file / key terms) is rendered at
+        the TOP of the page, so a top-to-bottom reader (e.g. the downstream
+        AI) sees the provenance before the visual.
         """
         filename = item.get("filename", "unknown.pdf")
         report_type = item.get("report_type", "?")
@@ -381,13 +275,26 @@ class PDFGenerator:
         matched = item.get("matched_terms", []) or []
         key_terms = ", ".join(matched[:6]) if matched else "—"
 
-        footer_text = (
+        ann_text = (
             f"#{index}  [{report_type}]  {filename}  —  Page {page_label}"
             f" | Source: {source_rel} | Key terms: {key_terms}"
         )
 
+        # Annotation header at the TOP of the page (provenance first).
+        ann_style = ParagraphStyle(
+            "SynHeader",
+            parent=self._styles["meta"],
+            fontName="Helvetica-Oblique",
+            fontSize=7,
+            leading=9,
+            textColor="#888888",
+            spaceAfter=0,
+        )
+        story.append(Paragraph(self._truncate_to_width(ann_text, size=7), ann_style))
+        story.append(Spacer(1, 2 * mm))
+
         content_h = PAGE_H - 2 * MARGIN
-        ann_h = 6 * mm          # reserved height at the bottom for the footer
+        ann_h = 6 * mm          # reserved height at the top for the annotation
         max_img_h = content_h - ann_h
 
         screenshot = item.get("screenshot")
@@ -426,33 +333,6 @@ class PDFGenerator:
                 "[Screenshot unavailable]",
                 self._styles["meta"],
             ))
-
-        return footer_text
-
-    def _draw_footer(
-        self,
-        canvas,
-        doc,
-        page_footers: list[str],
-    ):
-        """Draw the single-line annotation at the bottom of a report page.
-
-        The cover and section headers have empty footer entries, so nothing
-        is drawn for them. Long footers are truncated to fit one line.
-        """
-        idx = doc.page - 1
-        if idx < 0 or idx >= len(page_footers):
-            return
-        text = page_footers[idx]
-        if not text:
-            return
-
-        text = self._truncate_to_width(text, size=7)
-        canvas.saveState()
-        canvas.setFont("Helvetica-Oblique", 7)
-        canvas.setFillColor("#888888")
-        canvas.drawString(MARGIN, MARGIN + 2 * mm, text)
-        canvas.restoreState()
 
     def _truncate_to_width(
         self,

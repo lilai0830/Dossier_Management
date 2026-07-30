@@ -2,15 +2,14 @@
    Dossier_Management - Simplified one-page frontend
 
    Layout:
-     1. Listen Folder  — base directory config (input + Browse + Save)
+     1. Listen Folder  — base directory config (input + Browse + Save),
+                         with the Auto-Watch switch directly beneath it
      2. Configuration  — collapsed editors: classification anchors
                          (classify/*.txt) + page-selection queries
                          (queries/*.txt)
      3. Run Pipeline   — ONE button: scan → classify → ingest → package
                          → export for every project folder in the listen
                          folder; PDFs land in <listen>/Dossier_condensed/
-     4. Auto-Watch     — toggle: watch the listen folder and auto-run the
-                         pipeline when a new project folder appears
    ============================================================ */
 
 // --- DOM helpers ---

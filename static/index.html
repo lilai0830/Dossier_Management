@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance Dossier Management — Document Pipeline</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/static/style.css?v=14">
+<link rel="stylesheet" href="/static/style.css?v=15">
 </head>
 <body>
 
@@ -34,6 +34,26 @@
         <button class="btn btn-sm btn-outline" id="btn-save-folder" type="button"
           title="Save this folder path to disk (persisted across restarts)">Save Path</button>
       </div>
+    </div>
+
+    <div class="watch-row">
+      <div class="watch-text">
+        <div class="watch-title">
+          <span class="live-dot" id="live-dot"></span>
+          Auto-Watch Listen Folder
+          <span class="watch-state" id="watch-state">OFF</span>
+        </div>
+        <div class="watch-sub">
+          When ON, the app monitors the Listen Folder. Any <strong>new project folder</strong> dropped in
+          is picked up (after its upload finishes) and the full pipeline runs automatically. Results go to
+          <strong>Dossier_condensed/</strong>.
+        </div>
+        <div class="watch-exclude">excluded from watch: /Dossier_condensed</div>
+      </div>
+      <label class="switch" title="Toggle automatic folder watching">
+        <input type="checkbox" id="watch-toggle">
+        <span class="slider"></span>
+      </label>
     </div>
   </section>
 
@@ -124,30 +144,6 @@
 
     <div id="run-result" class="hidden" style="margin-top:14px;">
       <p class="success" id="run-result-text"></p>
-    </div>
-  </section>
-
-  <!-- ============ 4. Auto-Watch ============ -->
-  <section class="card watch-card">
-    <h2>4. Auto-Watch</h2>
-    <div class="watch-row">
-      <div class="watch-text">
-        <div class="watch-title">
-          <span class="live-dot" id="live-dot"></span>
-          Watch Listen Folder
-          <span class="watch-state" id="watch-state">OFF</span>
-        </div>
-        <div class="watch-sub">
-          When ON, the app monitors the Listen Folder. Any <strong>new project folder</strong> dropped in
-          is picked up (after its upload finishes) and the full pipeline runs automatically. Results go to
-          <strong>Dossier_condensed/</strong>.
-        </div>
-        <div class="watch-exclude">excluded from watch: /Dossier_condensed</div>
-      </div>
-      <label class="switch" title="Toggle automatic folder watching">
-        <input type="checkbox" id="watch-toggle">
-        <span class="slider"></span>
-      </label>
     </div>
   </section>
 
