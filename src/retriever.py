@@ -302,7 +302,7 @@ def _tfidf_score(
     entries for the PDF annotation block.
     """
     score = 0.0
-    matched: list[str] = []
+    matched: list[tuple[str, float]] = []   # (term, per-term weight)
     norm_text = page.get("_norm_text") or normalize(page.get("text", ""))
     tokens = page.get("_tokens")
     if tokens is None:
@@ -332,8 +332,12 @@ def _tfidf_score(
             if dim == "table_features" and has_table:
                 contrib *= TABLE_FEATURE_SYNERGY
             score += contrib
-            matched.append(term)
-    return score, matched
+            matched.append((term, contrib))
+    # Sort matched terms by their per-term weight (TF·IDF·dim·boost) descending
+    # so the footer surfaces the most salient terms first, then strip back to a
+    # plain list[str] so every downstream consumer is unchanged.
+    matched.sort(key=lambda x: -x[1])
+    return score, [t for t, _ in matched]
 
 
 # ---------------------------------------------------------------------------

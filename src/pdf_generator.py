@@ -17,7 +17,6 @@ from PIL import Image
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
     Image as RLImage,
     PageBreak,
@@ -56,6 +55,14 @@ logger = get_logger(__name__)
 PAGE_W, PAGE_H = landscape(A4)
 MARGIN = 20 * mm
 CONTENT_W = PAGE_W - 2 * MARGIN
+
+# reportlab's SimpleDocTemplate frame adds a 6pt padding on every side, so
+# the *inner* drawable area is the margin box minus 2*FRAME_PAD on each axis.
+# Sizing the full-page table against CONTENT_W/CONTENT_H (which ignores this
+# padding) is what previously pushed the image onto the next page.
+_FRAME_PAD = 6
+USABLE_W = PAGE_W - 2 * MARGIN - 2 * _FRAME_PAD
+USABLE_H = PAGE_H - 2 * MARGIN - 2 * _FRAME_PAD
 
 
 class PDFGenerator:
@@ -224,7 +231,7 @@ class PDFGenerator:
             )
             banner_tbl = Table(
                 [[Paragraph(banner_text, banner_style)]],
-                colWidths=[CONTENT_W],
+                colWidths=[USABLE_W],
             )
             banner_tbl.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), "#fdeaea"),
@@ -259,14 +266,22 @@ class PDFGenerator:
         item: dict,
         index: int,
     ) -> None:
-        """Append the screenshot for one report page to the story.
+        """Append one report page (screenshot + bottom annotation) to the story.
 
-        The output PDF is landscape (A4 landscape) because the source
-        material users upload (PDF/PPT) is landscape, so the screenshot
-        fills the full page width and stays crisp. A one-line annotation
-        (the page's owning report / source file / key terms) is rendered at
-        the TOP of the page, so a top-to-bottom reader (e.g. the downstream
-        AI) sees the provenance before the visual.
+        The output PDF is landscape A4 landscape. Each page is a single
+        fixed-height Table containing the screenshot on TOP and the
+        provenance annotation pinned to the BOTTOM of the page. Keeping the
+        annotation and the screenshot inside ONE flowable of exactly the
+        content height guarantees two things:
+
+          * The comment always stays on the SAME page as its screenshot.
+            (Previously the comment was placed at the top and the image in a
+            separate fixed-height table, so when the comment wrapped to two
+            lines the image no longer fit beside it and was pushed onto the
+            next page — orphaning the comment onto a different page.)
+          * The comment is allowed to WRAP to as many lines as needed instead
+            of being truncated with an ellipsis, so the downstream AI sees the
+            full provenance (source / type / key terms).
         """
         filename = item.get("filename", "unknown.pdf")
         report_type = item.get("report_type", "?")
@@ -277,25 +292,35 @@ class PDFGenerator:
 
         ann_text = (
             f"#{index}  [{report_type}]  {filename}  —  Page {page_label}"
-            f" | Source: {source_rel} | Key terms: {key_terms}"
+            f"  |  Source: {source_rel}  |  Key terms: {key_terms}"
         )
 
-        # Annotation header at the TOP of the page (provenance first).
+        # Annotation pinned to the BOTTOM of the page. It wraps freely to as
+        # many lines as needed — no truncation, no forced single line.
         ann_style = ParagraphStyle(
-            "SynHeader",
+            "SynFooter",
             parent=self._styles["meta"],
             fontName="Helvetica-Oblique",
             fontSize=7,
             leading=9,
             textColor="#888888",
-            spaceAfter=0,
+            alignment=0,
         )
-        story.append(Paragraph(self._truncate_to_width(ann_text, size=7), ann_style))
-        story.append(Spacer(1, 2 * mm))
+        ann_para = Paragraph(ann_text, ann_style)
 
-        content_h = PAGE_H - 2 * MARGIN
-        ann_h = 6 * mm          # reserved height at the top for the annotation
-        max_img_h = content_h - ann_h
+        content_h = USABLE_H
+        # Measure the wrapped height so we reserve only what the text needs.
+        # This keeps the screenshot as large as possible while never letting
+        # the annotation get clipped (the text box is grown, not folded).
+        _aw, ann_h = ann_para.wrap(USABLE_W, content_h)
+        ann_h = max(ann_h, 9)            # at least one line tall
+        max_ann_h = content_h * 0.35     # hard guard so the image keeps 65%+
+        ann_h = min(ann_h, max_ann_h)
+
+        # Leave a 1pt sliver so the full-page table is guaranteed to fit and
+        # never overflows into the next page (which would create a blank page
+        # before it).
+        img_row_h = (content_h - 1) - ann_h
 
         screenshot = item.get("screenshot")
         ss_path = Path(screenshot) if screenshot else None
@@ -305,48 +330,39 @@ class PDFGenerator:
                 with Image.open(ss_path) as img:
                     w, h = img.size
 
-                scale = min(CONTENT_W / w, max_img_h / h) if (w and h) else 1.0
+                scale = min(USABLE_W / w, img_row_h / h) if (w and h) else 1.0
                 img_w, img_h = w * scale, h * scale
 
                 rl_img = RLImage(str(ss_path), width=img_w, height=img_h)
-                img_table = Table(
-                    [[rl_img]],
-                    colWidths=[CONTENT_W],
-                    rowHeights=[max_img_h],
-                )
-                img_table.setStyle(TableStyle([
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                    ("TOPPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ]))
-                story.append(img_table)
             except Exception as e:
                 logger.error(f"Failed to embed screenshot {ss_path}: {e}")
-                story.append(Paragraph(
+                rl_img = Paragraph(
                     f"[Screenshot unavailable: {e}]",
                     self._styles["meta"],
-                ))
+                )
         else:
-            story.append(Paragraph(
+            rl_img = Paragraph(
                 "[Screenshot unavailable]",
                 self._styles["meta"],
-            ))
+            )
 
-    def _truncate_to_width(
-        self,
-        text: str,
-        font: str = "Helvetica-Oblique",
-        size: int = 7,
-        max_width: float = CONTENT_W,
-    ) -> str:
-        """Truncate a string so it fits in one line at the given font/size."""
-        if stringWidth(text, font, size) <= max_width:
-            return text
-        while text and stringWidth(text + "...", font, size) > max_width:
-            text = text[:-1]
-        return text + "..."
+        # Two-row, full-height table: screenshot (top, centred/middle) +
+        # annotation (bottom, left-aligned, wraps to multiple lines).
+        page_tbl = Table(
+            [[rl_img], [ann_para]],
+            colWidths=[USABLE_W],
+            rowHeights=[img_row_h, ann_h],
+        )
+        page_tbl.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (0, 0), "MIDDLE"),
+            ("VALIGN", (0, 1), (0, 1), "BOTTOM"),
+            ("ALIGN", (0, 0), (0, 0), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(page_tbl)
 
     def _relative_source(self, source: str) -> str:
         """Return a clean project-relative path (e.g. data/CLINS/xxx.pdf).
