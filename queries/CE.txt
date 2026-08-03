@@ -1,3 +1,36 @@
-consumer evaluation study efficacy safety dermatological
-tolerance satisfaction self-assessment instrumental measurement
-statistical analysis primary endpoint results summary conclusion
+# Title Anchors
+CONSUMER EVALUATION
+CONSUMER STUDY
+USAGE TEST
+HOME-USE TEST
+SATISFACTION ANALYSIS
+STATISTICAL ANALYSIS
+RESULTS
+SUMMARY
+CONCLUSION
+
+# Metric Keywords
+consumer
+satisfaction
+self-assessment
+tolerance
+efficacy
+safety
+dermatological
+instrumental measurement
+perception
+questionnaire
+panelist
+claim substantiation
+
+# Table Features
+p-value
+confidence interval
+mean score
+statistical significance
+primary endpoint
+baseline
+percentage of subjects
+
+# Other
+# Add target-formula / study-code / product-specific vocabulary here (anti-miss).

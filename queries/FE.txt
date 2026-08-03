@@ -1,3 +1,36 @@
-panel analysis texture fragrance odor appearance
-feel sensory attributes descriptive analysis hedonic liking touch
-color sensory profiling results technical summary conclusion
+# Title Anchors
+SENSORY EVALUATION
+SENSORY PROFILING
+DESCRIPTIVE ANALYSIS
+HEDONIC TEST
+SENSORY ASSESSMENT
+RESULTS
+SUMMARY
+CONCLUSION
+
+# Metric Keywords
+texture
+fragrance
+odor
+appearance
+feel
+sensory attributes
+hedonic
+liking
+touch
+color
+panel
+analysis
+sensory
+
+# Table Features
+intensity scale
+mean score
+p-value
+confidence interval
+descriptive profile
+radar chart
+line scale
+
+# Other
+# Add target-formula / study-code / product-specific vocabulary here (anti-miss).

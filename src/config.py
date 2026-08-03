@@ -138,6 +138,32 @@ TOP_N_PER_TYPE = 12            # default cap of pages kept PER report type
 # Backward-compatible alias (older imports referenced LEXICAL_TOP_N_PER_TYPE).
 LEXICAL_TOP_N_PER_TYPE = TOP_N_PER_TYPE
 
+# --- Page-selection TF-IDF lexicon (4-dimension weighted) ---------------
+# queries/{CLINS,FE,CE}.txt are now SECTIONED lexicons. Each file has up to
+# four sections introduced by a "# <Dimension>" header line:
+#   # Title Anchors   — section/heading signals (high weight; positional boost)
+#   # Metric Keywords — outcome/measurement terms (strong weight)
+#   # Table Features  — statistical markers (synergy with detected tables)
+#   # Other           — project-specific vocabulary (relevance booster / anti-miss)
+# Any other "#" line is a comment. One term/phrase per line; multi-word entries
+# are matched as phrases. The retriever computes a BM25-style IDF across the
+# current project's pages (per report type) and scores each page as
+#   score = Σ_t TF(t,page) · IDF(t) · W(dim(t)) · Pos(t)
+# See src/retriever.py. The classifier (classify/*.txt) is intentionally
+# untouched — this only affects page selection.
+LEXICON_DIMENSIONS = ["title_anchors", "metric_keywords", "table_features", "other"]
+DIM_WEIGHTS = {
+    "title_anchors": 3.0,    # high-weight anchors (your "高权重锚点词")
+    "metric_keywords": 2.5,  # strong indicator terms
+    "table_features": 2.0,   # statistical markers
+    "other": 0.5,            # project-specific vocabulary (relevance booster)
+}
+TF_SUBLINEAR = True          # use 1 + log(tf) instead of raw term frequency
+TITLE_ANCHOR_TOP_REGION = 0.25   # fraction of page text (from top) = "heading zone"
+TITLE_ANCHOR_BOOST = 2.0     # multiplier when a Title Anchor hits the heading zone
+TABLE_FEATURE_SYNERGY = 1.5  # multiplier when a Table Feature co-occurs with a table
+TOC_HEADERS = ("table of contents", "contents", "sommaire", "目录")
+
 # --- Default per-type queries (fallback if queries/*.txt missing) ---
 DEFAULT_QUERIES: dict[str, str] = {
     "CLINS": (
