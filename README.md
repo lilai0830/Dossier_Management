@@ -1,4 +1,4 @@
-# Dossier Management — Document Retrieval & Packaging Pipeline
+# Dossier Management — Document Listening & Packaging Pipeline
 
 A **local, offline, human-in-the-loop** pipeline that extracts the summary pages
 (high-resolution screenshot + structured annotation) from project reports
