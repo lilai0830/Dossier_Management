@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance Dossier Management — Document Pipeline</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/static/style.css?v=15">
+<link rel="stylesheet" href="/static/style.css?v=16">
 </head>
 <body>
 
@@ -116,6 +116,19 @@
     <h2>3. Run Pipeline</h2>
     <p class="hint">One click runs the whole pipeline for every project folder found in the Listen Folder: <strong>scan &rarr; classify &rarr; ingest &rarr; package</strong>. Finished PDFs are saved to <strong>&lt;Listen Folder&gt;/Dossier_condensed/</strong>.</p>
 
+    <!-- 3a. Deletion Floor (page-deletion threshold) -->
+    <div class="param-row">
+      <label for="deletion-floor">Deletion Floor</label>
+      <div class="folder-input-group">
+        <input type="number" id="deletion-floor" min="0" step="0.5" value="3.0"
+          title="Pages scoring below this on BOTH tracks are removed. Higher = more aggressive deletion.">
+        <button class="btn btn-sm btn-outline" id="btn-save-floor" type="button"
+          title="Save the Deletion Floor (persisted; applied to all runs)">Save</button>
+      </div>
+      <span class="param-status" id="floor-status"></span>
+    </div>
+    <p class="hint param-hint">Pages whose keyword + structure score both fall below the Deletion Floor are deleted. Raise it to drop more low-information pages; lower it to keep more. Default 3.0. Click <strong>Save</strong> to apply — it then affects every run, including Run Full Pipeline.</p>
+
     <div class="button-row">
       <button class="btn btn-accent btn-run-all" id="btn-run-all"
         title="Run the full pipeline (scan, classify, ingest, package, export) for all project folders">
@@ -177,7 +190,7 @@
   </div>
 </div>
 
-<script src="/static/app.js?v=20"></script>
+<script src="/static/app.js?v=21"></script>
 
 </body>
 </html>

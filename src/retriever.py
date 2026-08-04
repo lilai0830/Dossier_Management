@@ -5,14 +5,17 @@ Summary pages are found with LexicalRetriever using TWO INDEPENDENT, PARALLEL
 selectors (page-selection stage, distinct from document classification which
 uses classify/*.txt). Neither selector depends on the other's output:
 
-  A) Keyword selector   — rank every page of a type by lexical score against
-     queries/{CLINS,FE,CE}.txt and keep the top `top_n` (the "summary pages",
-     on-topic, high textual relevance).
-  B) Structure selector — rank every page of a type by structural richness
-     (figures + table + list) and keep the top `top_n` (the "figure /
-     information-dense pages").
+  A) Keyword selector   — score every page of a type by lexical TF-IDF against
+     queries/{CLINS,FE,CE}.txt (the "summary" signal).
+  B) Structure selector — score every page of a type by structural richness
+     (figures + table + list) (the "information-dense" signal).
 
-After merging, each type is capped at `top_n` pages (default TOP_N_PER_TYPE = 12,
+Selection uses DELETE mode: every page is KEPT by default, and a page is
+deleted only when BOTH track scores fall below the single global floor
+config.DELETE_SCORE_FLOOR (union semantics — a page with a relevant table but
+off-topic text, or vice-versa, is never falsely removed). TOC / cover pages are
+zeroed on both tracks and therefore always deleted. An optional MAX ceiling
+(`top_n` > 0) can still truncate a type after deletion as a safety net.
 
 The two shortlists are produced side by side and then MERGED (union,
 deduplicated) at the very end. A page may be picked by A, by B, or by both;
@@ -39,6 +42,9 @@ from collections import Counter
 from .config import (
     REPORT_TYPES,
     TOP_N_PER_TYPE,
+    DELETE_SCORE_FLOOR,
+    DELETE_MIN_KEEP,
+    get_delete_floor,
     LEXICON_DIMENSIONS,
     DIM_WEIGHTS,
     TF_SUBLINEAR,
@@ -354,44 +360,54 @@ class LexicalRetriever(Retriever):
         self,
         queries: dict[str, str],
         top_n: int | None = None,
+        delete_floor: float | None = None,
     ) -> list[dict]:
-        """Select pages for the synthesis PDF with TWO PARALLEL selectors.
+        """Select pages for the synthesis PDF using TWO PARALLEL score tracks
+        and a DELETE policy (keep-all, drop-low-value).
 
-        For each report type, two independent shortlists are built side by side
-        (neither filters the other's input):
+        For each report type, BOTH scores are computed for every page up front
+        (neither track gates the other):
 
-          A) Keyword selector   — rank ALL pages of the type by lexical score
-             against queries/{type}.txt; keep the top ``top_n`` pages that
-             actually match (score > 0). These are summary pages.
-          B) Structure selector — rank ALL pages of the type by structural
-             richness (figures + table + list); keep the top ``top_n`` pages
-             that carry any structure (score > 0). These are figure /
-             information-dense pages.
+          A) Keyword track   — TF-IDF lexical score against queries/{type}.txt
+                               (the "summary" signal).
+          B) Structure track — structural richness (figures + table + list)
+                               (the "information-dense" signal).
 
-        The two shortlists are then MERGED (union, deduplicated by
-        source_path + page_index). After merging, EACH report type keeps at
-        most ``top_n`` pages (the final cap). ``top_n`` is configurable at
-        runtime (frontend input / CLI --top-n); when omitted it falls back to
-        ``config.TOP_N_PER_TYPE``. A ``top_n`` of ``-1`` is a sentinel meaning
-        "no per-type cap" (All) — every page chosen by either selector is kept.
+        DELETE mode: a page is KEPT by default and deleted ONLY when BOTH track
+        scores fall below the single global ``floor``::
 
-        Each surviving page is tagged with which selector(s) chose it
-        (``selected_by``: ["keyword"], ["structure"], or both). Ordering
-        within a type: pages chosen by both selectors first, then by combined
-        relevance.
+            deleted  <=>  (_kw_score < floor) AND (_struct_score < floor)
+
+        ``floor`` is the effective deletion threshold. It is taken from the
+        ``delete_floor`` argument when provided, otherwise from the persisted
+        frontend override (config.get_delete_floor()), which itself falls back
+        to the hard-coded ``config.DELETE_SCORE_FLOOR``. This preserves the
+        union semantics of the two tracks — a page with a relevant table but
+        off-topic text (or vice-versa) is never falsely removed, so genuinely
+        informative pages are retained. TOC / cover pages are zeroed on both
+        tracks and are therefore always deleted.
+
+        An optional MAX ceiling is applied AFTER deletion when ``top_n`` is a
+        positive integer (safety net only; ``None`` or ``-1`` means no ceiling,
+        so we never re-cap by rank). Each survivor is tagged with which track(s)
+        kept it (``selected_by``) and ordered: chosen-by-both first, then by
+        combined relevance.
         """
         pages = load_index(self.project_id)
         if not pages:
             return []
 
+        # Effective deletion floor: explicit arg > frontend override > constant.
+        floor = delete_floor if delete_floor is not None else get_delete_floor()
+
         if top_n is None:
-            cap = TOP_N_PER_TYPE
+            cap = None            # delete mode: floor-driven, no rank cap by default
         elif top_n == -1:
             cap = None            # sentinel: no per-type cap (All)
         elif isinstance(top_n, int) and top_n > 0:
-            cap = top_n
+            cap = top_n           # explicit ceiling requested
         else:
-            cap = TOP_N_PER_TYPE
+            cap = None
 
         results: list[dict] = []
         for rt in REPORT_TYPES:
@@ -433,33 +449,51 @@ class LexicalRetriever(Retriever):
                 p["matched_terms"] = matched
                 p["_struct_score"] = _structural_score(p)
 
-            # Selector A — keyword shortlist (summary pages).
-            kw_hits = [p for p in candidates if p["_kw_score"] > 0]
-            kw_hits.sort(key=lambda p: (-p["_kw_score"], -p["_struct_score"]))
-            kw_selected = kw_hits[:cap]
+            # ---- DELETE mode: keep everything, drop only low-value pages ----
+            # A page survives if EITHER track meets the global floor (union
+            # semantics), so it is deleted only when BOTH tracks are below it.
+            # TOC / cover pages already have both scores zeroed -> auto-deleted.
+            survivor_keys = {
+                (p["source_path"], p["page_index"])
+                for p in candidates
+                if p["_kw_score"] >= floor
+                or p["_struct_score"] >= floor
+            }
+            if not survivor_keys:
+                # Safety net: whole type is boilerplate -> keep top-N by value + warn.
+                logger.warning(
+                    f"[{rt}] deletion left 0 pages (entire type is boilerplate); "
+                    f"keeping top {DELETE_MIN_KEEP} by value as a safeguard."
+                )
+                survivors = sorted(
+                    candidates,
+                    key=lambda p: -max(p["_kw_score"], p["_struct_score"]),
+                )[:DELETE_MIN_KEEP]
+                survivor_keys = {
+                    (p["source_path"], p["page_index"]) for p in survivors
+                }
 
-            # Selector B — structure shortlist (figure / info-dense pages).
-            st_hits = [p for p in candidates if p["_struct_score"] > 0]
-            st_hits.sort(key=lambda p: (-p["_struct_score"], -p["_kw_score"]))
-            st_selected = st_hits[:cap]
+            survivors = [
+                p for p in candidates
+                if (p["source_path"], p["page_index"]) in survivor_keys
+            ]
+            deleted = [
+                p for p in candidates
+                if (p["source_path"], p["page_index"]) not in survivor_keys
+            ]
 
-            # Merge (union) at the end, deduplicated, with selector tags.
-            merged: dict[tuple, dict] = {}
-            for p in kw_selected:
-                key = (p["source_path"], p["page_index"])
-                p["selected_by"] = ["keyword"]
-                merged[key] = p
-            for p in st_selected:
-                key = (p["source_path"], p["page_index"])
-                if key in merged:
-                    merged[key]["selected_by"].append("structure")
-                else:
-                    p["selected_by"] = ["structure"]
-                    merged[key] = p
+            # Tag which track(s) kept each survivor.
+            for p in survivors:
+                sel = []
+                if p["_kw_score"] >= floor:
+                    sel.append("keyword")
+                if p["_struct_score"] >= floor:
+                    sel.append("structure")
+                p["selected_by"] = sel
 
             # Order: chosen-by-both first, then combined relevance.
             ordered = sorted(
-                merged.values(),
+                survivors,
                 key=lambda p: (
                     -len(p["selected_by"]),
                     -p["_kw_score"],
@@ -467,16 +501,20 @@ class LexicalRetriever(Retriever):
                 ),
             )
 
-            # Final per-type cap: this type keeps at most `cap` pages.
-            ordered = ordered[:cap]
+            # Optional MAX ceiling (only when an explicit top_n > 0 was given;
+            # None / -1 -> no ceiling, so we never re-cap by rank).
+            if cap is not None:
+                ordered = ordered[:cap]
 
             both = sum(1 for p in ordered if len(p["selected_by"]) == 2)
-            cap_label = "All (no cap)" if cap is None else cap
+            kw_n = sum(1 for p in ordered if "keyword" in p["selected_by"])
+            st_n = sum(1 for p in ordered if "structure" in p["selected_by"])
+            cap_label = "no ceiling" if cap is None else cap
             logger.info(
                 f"[{rt}] kept {len(ordered)} pages "
-                f"(keyword={len(kw_selected)}, structure={len(st_selected)}, "
-                f"both={both}) from {len(candidates)} candidates "
-                f"(cap per type = {cap_label})"
+                f"(keyword={kw_n}, structure={st_n}, both={both}, "
+                f"deleted={len(deleted)}) from {len(candidates)} candidates "
+                f"(floor={floor}, ceiling={cap_label})"
             )
             results.extend(_to_items(ordered))
 

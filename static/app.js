@@ -367,6 +367,48 @@ $("#btn-save-queries").addEventListener("click", async (e) => {
   setButtonLoading(btn, false);
 });
 
+// --- Deletion Floor (page-deletion threshold, persisted on the backend) ---
+const floorInput = $("#deletion-floor");
+const floorStatus = $("#floor-status");
+
+async function loadDeleteFloor() {
+  try {
+    const res = await fetch("/config/params");
+    const data = await res.json();
+    if (data.ok && data.delete_floor != null) {
+      floorInput.value = data.delete_floor;
+      floorStatus.textContent = `(default ${data.default_delete_floor})`;
+    }
+  } catch (err) {
+    // config params are optional — ignore network errors silently
+  }
+}
+
+$("#btn-save-floor").addEventListener("click", async () => {
+  const raw = floorInput.value.trim();
+  const v = parseFloat(raw);
+  if (raw === "" || isNaN(v) || v < 0) {
+    log("Deletion Floor must be a number ≥ 0.", "warn");
+    return;
+  }
+  try {
+    const res = await fetch("/config/params", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ delete_floor: v }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      floorStatus.textContent = ` saved (${data.delete_floor})`;
+      log(`Deletion Floor set to ${data.delete_floor}.`, "success");
+    } else {
+      log("Failed to save Deletion Floor: " + (data.detail || ""), "error");
+    }
+  } catch (err) {
+    log("Save Deletion Floor error: " + err.message, "error");
+  }
+});
+
 // =================================================================
 // Activity feed (server-side events → frontend log)
 // =================================================================
@@ -580,6 +622,7 @@ watchToggle.addEventListener("change", async () => {
 loadListenFolder();
 loadProfiles();
 loadQueries();
+loadDeleteFloor();
 loadWatchState();
 pollActivity();
 setActivityPolling(false);

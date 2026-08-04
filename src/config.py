@@ -2,6 +2,7 @@
 Dossier_Management — Pipeline Configuration
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -122,18 +123,85 @@ REPORT_TYPE_LABELS = {
 # --- PDF parsing ---
 SCREENSHOT_DPI = 300          # High resolution for crisp screenshots (~4x default 72 DPI)
 
-# --- Page-selection (retriever) tuning --------------------------------
-# Two INDEPENDENT, PARALLEL selectors run per report type and are merged at the
-# end (union). Neither depends on the other:
-#   A) Keyword selector  — ranks pages by lexical score against queries/{type}.txt
-#      (the "summary pages").
-#   B) Structure selector — ranks pages by structural richness (figures + table +
-#      list) (the "figure / info-dense pages").
-# After merging, EACH report type keeps at most TOP_N_PER_TYPE pages, so the
-# final PDF stays focused. The value is NOT hardcoded at the call site — it can
-# be overridden at runtime via the frontend input or the CLI flag --top-n, and
-# falls back to this default only when no override is given.
-TOP_N_PER_TYPE = 12            # default cap of pages kept PER report type
+# --- Page-selection tuning: DELETE mode (replaces the old top-N "select") ----
+# We no longer keep only the top-N *ranked* pages per type (that silently dropped
+# mid-rank but still-valid pages). Instead we KEEP everything and DELETE pages
+# whose information value falls below a single GLOBAL absolute score floor.
+#
+# Per-page value = max(_kw_score, _struct_score)   # union semantics:
+#   a page survives if EITHER track signals value, so it is deleted only when
+#   BOTH tracks are below the floor. A page with a relevant table but off-topic
+#   text (or vice-versa) is therefore never falsely removed (avoids 误伤).
+#     deleted  <=>  (_kw_score < DELETE_SCORE_FLOOR) AND (_struct_score < DELETE_SCORE_FLOOR)
+# TOC / cover pages are zeroed on both tracks and are always deleted.
+#
+# DELETE_SCORE_FLOOR is an ABSOLUTE global threshold (NOT a percentile): the same
+# value applies to every report type. Calibrated on the project's indexed
+# dossiers (deletion % at various floors):
+#   T=1.5 -> ~4-12%   T=2.5 -> ~9-12%   T=3.0 -> ~9-12%   T=4.0 -> ~14-31%
+# The user's ~30% target corresponds to T~4, which also drops low-structure pages
+# (single figure/table). Default is conservative: removes only clearly-low-info
+# pages. Raise it if your real dossiers contain more boilerplate. Tune freely.
+DELETE_SCORE_FLOOR = 3.0
+# Safety net: if deletion would leave a type with ZERO pages (whole dossier is
+# boilerplate), keep at least this many highest-value pages and warn.
+DELETE_MIN_KEEP = 3
+
+# --- User-tunable overrides (persisted to disk, editable from the frontend) --
+# The frontend exposes "Deletion Floor" so the user can retune page deletion
+# without editing code. The value is stored in config_overrides.json and read
+# at run time by the retriever; DELETE_SCORE_FLOOR above remains the hard-coded
+# default / fallback when no override is set (or it is cleared).
+CONFIG_OVERRIDES_PATH = PROJECT_ROOT / "config_overrides.json"
+
+
+def get_config_overrides() -> dict:
+    """Load the user-editable config overrides, or {} if none saved yet."""
+    if not CONFIG_OVERRIDES_PATH.exists():
+        return {}
+    try:
+        return json.loads(CONFIG_OVERRIDES_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def set_config_overrides(overrides: dict) -> dict:
+    """Persist the given override dict (merged onto the existing one).
+
+    Explicit ``None`` values are dropped so the caller can "reset to default"
+    by saving ``None`` for a key.
+    """
+    cur = get_config_overrides()
+    cur.update(overrides)
+    cur = {k: v for k, v in cur.items() if v is not None}
+    CONFIG_OVERRIDES_PATH.write_text(
+        json.dumps(cur, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    return cur
+
+
+def get_delete_floor() -> float:
+    """Effective deletion floor: user override if set, else DELETE_SCORE_FLOOR."""
+    ov = get_config_overrides().get("delete_floor")
+    try:
+        if ov is not None:
+            return float(ov)
+    except (TypeError, ValueError):
+        pass
+    return float(DELETE_SCORE_FLOOR)
+
+
+def set_delete_floor(value: float) -> float:
+    """Persist the deletion floor override. Returns the stored value."""
+    v = float(value)
+    set_config_overrides({"delete_floor": v})
+    return v
+
+# Optional MAX ceiling applied AFTER deletion. In delete mode this is OFF by
+# default (top_n=None -> no ceiling) so we never re-introduce rank-based data
+# loss. Pass --top-n N (or API top_n=N) to cap a type at N pages as a safety net.
+# TOP_N_PER_TYPE is only used when an explicit top_n is provided.
+TOP_N_PER_TYPE = 12            # optional ceiling; used ONLY when an explicit top_n is given
 
 # Backward-compatible alias (older imports referenced LEXICAL_TOP_N_PER_TYPE).
 LEXICAL_TOP_N_PER_TYPE = TOP_N_PER_TYPE

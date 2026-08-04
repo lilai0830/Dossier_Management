@@ -44,9 +44,12 @@ from .config import (
     PROJECT_ROOT,
     REPORT_TYPES,
     SCREENSHOTS_DIR,
+    DELETE_SCORE_FLOOR,
     delete_listen_folder,
     get_listen_folders,
     get_listen_folder,
+    get_delete_floor,
+    set_delete_floor,
     project_data_dir,
     set_listen_folder,
 )
@@ -100,6 +103,7 @@ class PackageRequest(BaseModel):
     top_n: Optional[int] = None  # cap of pages PER report type; -1 = All (no cap); None = config default
     project_owner: str = ""  # name of the project owner, shown on the PDF cover
     target_formula: str = ""  # final target formula; baked into the PDF cover
+    delete_floor: Optional[float] = None  # deletion floor override; None = config/frontend default
 
 
 class RunRequest(BaseModel):
@@ -108,10 +112,15 @@ class RunRequest(BaseModel):
     top_n: Optional[int] = None  # cap of pages PER report type; -1 = All (no cap); None = config default
     project_owner: str = ""  # name of the project owner, shown on the PDF cover
     target_formula: str = ""  # final target formula; baked into the PDF cover
+    delete_floor: Optional[float] = None  # deletion floor override; None = config/frontend default
 
 
 class ScanRequest(BaseModel):
     project_name: str  # folder name under the listen folder (or PROJECT_ROOT) to scan for dossiers
+
+
+class ParamsRequest(BaseModel):
+    delete_floor: Optional[float] = None  # new deletion floor; omit to read current
 
 
 class ListenFolderRequest(BaseModel):
@@ -200,6 +209,44 @@ async def set_listen_folder_config(req: ListenFolderRequest):
         raise HTTPException(400, "path is required")
     set_listen_folder(req.path.strip())
     return {"ok": True, "path": get_listen_folder() or ""}
+
+
+@app.get("/config/params")
+async def get_config_params():
+    """Return the user-tunable pipeline parameters.
+
+    ``delete_floor`` is the effective deletion threshold (frontend override or
+    the hard-coded default). ``default_delete_floor`` is the constant default.
+    """
+    return {
+        "ok": True,
+        "delete_floor": get_delete_floor(),
+        "default_delete_floor": float(DELETE_SCORE_FLOOR),
+    }
+
+
+@app.post("/config/params")
+async def set_config_params(req: ParamsRequest):
+    """Persist a user-tunable pipeline parameter (currently ``delete_floor``).
+
+    Body (JSON, all optional):
+        delete_floor: float  — pages scoring below this on BOTH tracks are
+                               deleted. Persisted so it applies to every run
+                               (including the one-click Run Full Pipeline).
+    """
+    if req.delete_floor is not None:
+        try:
+            v = float(req.delete_floor)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "delete_floor must be a number")
+        if v < 0:
+            raise HTTPException(400, "delete_floor must be >= 0")
+        set_delete_floor(v)
+    return {
+        "ok": True,
+        "delete_floor": get_delete_floor(),
+        "default_delete_floor": float(DELETE_SCORE_FLOOR),
+    }
 
 
 @app.get("/config/listen-folders")
@@ -356,6 +403,7 @@ async def package(req: PackageRequest):
         output_path = pipeline.package(
             req.queries, top_n=req.top_n,
             project_owner=req.project_owner, target_formula=req.target_formula,
+            delete_floor=req.delete_floor,
         )
         return {
             "ok": True,
@@ -383,6 +431,7 @@ async def run_pipeline(req: RunRequest):
         output_path = pipeline.package(
             req.queries, top_n=req.top_n,
             project_owner=req.project_owner, target_formula=req.target_formula,
+            delete_floor=req.delete_floor,
         )
         logger.info(f"Package complete -> {output_path}")
         return {
